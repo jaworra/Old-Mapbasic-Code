@@ -1,0 +1,164 @@
+' Programmer: John Worall
+' Date:            06/06/2013
+' Description:     Reads KML file for Bridge location identification
+' Bugs/Updates Required: 
+
+'Sample Structure XML 
+'<Placemark>
+'		<name>Steel Bridge (AR 0.580 km)</name>
+'		<description>Type - Steel
+'
+'Location - 0.580 km
+'
+'Length -  63 metres</description>
+'		<LookAt>
+'			<longitude>153.0279957975252</longitude>
+'			<latitude>-27.56151511990557</latitude>
+'			<altitude>0</altitude>
+'			<heading>0.004025502773274116</heading>
+'			<tilt>0</tilt>
+'			<range>275.487796860324</range>
+'			<altitudeMode>relativeToGround</altitudeMode>
+'			<gx:altitudeMode>relativeToSeaFloor</gx:altitudeMode>
+'		</LookAt>
+'		<styleUrl>#msn_ylw-pushpin0</styleUrl>
+'		<Point>
+'			<altitudeMode>absolute</altitudeMode>
+'			<coordinates>153.0280576320454,-27.56200878656702,9.817140775289973</coordinates>
+'		</Point>
+'	</Placemark>
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+
+Declare Sub Main
+
+Sub Main
+Dim pln As Object
+Dim ln,TableName,InputCord,fileName As String
+Dim Xl,Yl As Float
+Dim Zh As String 
+Dim NumPt,SpacePos,SpacePos1 As Integer
+
+Print Chr$(12)
+close all
+fileName = FileOpenDlg("G:\Geospatial\GIS\JohnW\Request\Wayne", "idas_2014_6_6_13_06", "*.KML", "open KML file")
+If fileName = "" Then
+	Exit Sub
+End If
+Open File fileName For Input As 1
+TableName = PathToTableName$(fileName)
+
+Create Table TableName 
+	(IDAS_No Char(100),Applicant Char(254),Development Char(254), Lot_plan Char(254),CalcArea Char(50), Date_Recieved Char(50),File_No Char(254))
+Create Map For TableName
+Map From TableName 
+Set Map CoordSys Earth Projection 1,104  ' Sets projection WGS84
+
+'Initialise Variables
+NumPt = 1
+Create Pline Into Variable pln 0
+
+Dim keyWord,name,descripStr,tempStr As String
+Dim foundKeyWord,closeKeyWord As Integer
+
+Dim long,lat As String
+Dim startReading,pointRead,description As Logical
+Dim pointObj as Object
+Dim coordLn As String
+
+Dim ID_No,ID_App,ID_Deve,ID_Lotname,ID_Area,ID_Date, ID_FileNo As String
+
+startReading = False
+pointRead = False
+description = False
+
+Do While Not EOF(1)
+	Line Input #1, ln
+
+	If InStr(1,ln,"<Placemark>") > 0 Then 
+		startReading = True
+		Print "ENTERS >>>> "
+	End If
+
+	If startReading = True Then
+	
+		'ID Assignment
+		If InStr(1,ln,">IDAS_No<") > 0 Then
+			print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			ID_No = Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+		End If
+	
+		'Description application
+		If InStr(1,ln,">Applicant<") > 0 Then
+			print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			ID_App = Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))			
+		End If	
+		
+		'Description Development 
+		If InStr(1,ln,">Development<") > 0 Then
+			print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			ID_Deve= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+		'Description Lot_plan
+		If InStr(1,ln,">Lot_plan<") > 0 Then
+			print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			ID_Lotname= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+			
+		'Description Area
+		If InStr(1,ln,">Area<") > 0 Then
+			print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			ID_Area= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		'Description Date
+		If InStr(1,ln,">Date_Received<") > 0 Then
+			print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			ID_Date= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+		'Description File Number
+		If InStr(1,ln,">File_No<") > 0 Then
+			print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			ID_FileNo= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If		
+		
+		'Coordinate Extraction
+		If InStr(1,ln,"<coordinates>") > 0 Then
+			coordLn =  Mid$(ln,InStr(1,ln,"<coordinates>")+13,(InStr(1,ln,"</coordinates>")) - (InStr(1,ln,"<coordinates>")+13))
+			long = Mid$(coordLn,1,InStr(1,coordLn,",")-1)
+			coordLn =  Mid$(coordLn,InStr(1,coordLn,",")+1,Len(coordLn) - InStr(1,coordLn,","))
+			lat = Mid$(coordLn,1,InStr(1,coordLn,",")-1)	
+		End If
+		
+		If InStr(1,ln,"</Placemark>") > 0 and startReading = True Then
+		'startReading = False
+		print "Point Created...."
+'		print "	-   Name: "+name
+'		print " -   Description: "+descripStr
+'		print " -   Longitude: "+long 
+'		print " -   Latitude: "+lat 
+		'Create Point Into Variable pointObj(long,lat)
+		
+		'If len(ID_No)>0 and len(lat)>0 Then 
+		If len(lat)>0 Then 
+			Create Point Into Variable pointObj(long,lat)
+			Insert Into TableName (obj,IDAS_No,Applicant,Development, Lot_plan,CalcArea, Date_Recieved,File_No)
+				Values(CreatePoint(long,lat),ID_No,ID_App,ID_Deve,ID_Lotname,ID_Area,ID_Date, ID_FileNo)
+			End If
+		End IF
+		
+	End If
+
+	
+Loop
+	Commit table TableName 
+	Set Map Zoom Entire Layer TableName
+	Set map redraw on
+End Sub
+
+
+

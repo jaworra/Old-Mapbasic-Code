@@ -1,0 +1,192 @@
+'================================================================================================================='
+' Programmer:       John Worrall																								'
+' Last Update:      17/01/2021																									'
+'																																	'	
+' Description:    																												'
+'  - Heavy vehicle process																										'
+' Combine files by month																											'
+																																	'
+' Furture Works - Combined sub functions in parent folders for a single exe.											'
+'               - Option for user entry or select of files to process													'
+' Bugs 	- Investigate I/0 issue where space at end of file is being writtern out. 									'
+'																																	'
+'================================================================================================================='
+
+'                      .         .                           
+'8888888 8888888888   ,8.       ,8.          8 888888888o.   
+'      8 8888        ,888.     ,888.         8 8888    `88.  
+'      8 8888       .`8888.   .`8888.        8 8888     `88  
+'      8 8888      ,8.`8888. ,8.`8888.       8 8888     ,88  
+'      8 8888     ,8'8.`8888,8^8.`8888.      8 8888.   ,88'  
+'      8 8888    ,8' `8.`8888' `8.`8888.     8 888888888P'   
+'      8 8888   ,8'   `8.`88'   `8.`8888.    8 8888`8b       
+'      8 8888  ,8'     `8.`'     `8.`8888.   8 8888 `8b.     
+'      8 8888 ,8'       `8        `8.`8888.  8 8888   `8b.   
+'      8 8888,8'         `         `8.`8888. 8 8888     `88. 
+
+'                                                                                                                                                                                                                       
+'     ,o888888o.    8 8888888888       ,o888888o.       d888888o.   8 888888888o 8888888 8888888888   .8.           8 8888 8 8888                   8888888 8888888888 8 8888888888       ,o888888o.    8 8888        8 
+'    8888     `88.  8 8888          . 8888     `88.   .`8888:' `88. 8 8888    `88.     8 8888        .888.          8 8888 8 8888                         8 8888       8 8888            8888     `88.  8 8888        8 
+' ,8 8888       `8. 8 8888         ,8 8888       `8b  8.`8888.   Y8 8 8888     `88     8 8888       :88888.         8 8888 8 8888                         8 8888       8 8888         ,8 8888       `8. 8 8888        8 
+' 88 8888           8 8888         88 8888        `8b `8.`8888.     8 8888     ,88     8 8888      . `88888.        8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888        8 
+' 88 8888           8 888888888888 88 8888         88  `8.`8888.    8 8888.   ,88'     8 8888     .8. `88888.       8 8888 8 8888                         8 8888       8 888888888888 88 8888           8 8888        8 
+' 88 8888           8 8888         88 8888         88   `8.`8888.   8 888888888P'      8 8888    .8`8. `88888.      8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888        8 
+' 88 8888   8888888 8 8888         88 8888        ,8P    `8.`8888.  8 8888             8 8888   .8' `8. `88888.     8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888888888888 
+' `8 8888       .8' 8 8888         `8 8888       ,8P 8b   `8.`8888. 8 8888             8 8888  .8'   `8. `88888.    8 8888 8 8888                         8 8888       8 8888         `8 8888       .8' 8 8888        8 
+'    8888     ,88'  8 8888          ` 8888     ,88'  `8b.  ;8.`8888 8 8888             8 8888 .888888888. `88888.   8 8888 8 8888                         8 8888       8 8888            8888     ,88'  8 8888        8 
+'     `8888888P'    8 888888888888     `8888888P'     `Y8888P ,88P' 8 8888             8 8888.8'       `8. `88888.  8 8888 8 888888888888                 8 8888       8 888888888888     `8888888P'    8 8888        8 
+'
+
+'Library
+'*********************************************************************************************
+Include "mapbasic.def"
+Include "icons.def"
+Include "Menu.def" ' -> not needed?
+
+'*********************************************************************************************
+Declare Sub Main
+
+Sub Main
+
+Print "-------------------------------------------------------------------"
+Print "Combined Files of .pos and .sdm"
+Print "-------------------------------------------------------------------"
+
+'=================================================================================================
+' Output list of files to combine - run cmd prompt
+'------------------------------------------------------------------------------------------
+
+Dim UsersFilePath As String
+Dim PasteDirctFnl As String
+Dim CopyDirctOrgFnl As String
+Dim ln As String
+
+
+Dim AppFolder as String
+AppFolder = ApplicationDirectory$()
+Print AppFolder
+
+'=================================================================================================
+' Identifies heavy vehicle ID numbers
+'------------------------------------------------------------------------------------------
+
+Dim StrLen As SmallInt
+Dim StrAd As String
+Dim SubFold As String
+Dim FSubFold As String
+
+SubFold = "00004"
+StrLen = 11 - Len(SubFold)
+StrAd = "0"
+'print StrLen
+
+'While loop to assign unique id for vehicle - 11 the set unique number
+While StrLen < 12
+SubFold =StrAd + SubFold
+StrLen =StrLen+1
+Print SubFold
+Wend
+
+'Output test for variables
+'FSubFold = SubFold + StrAd
+Print FSubFold
+'=================================================================================================
+' Process existing file and recreate
+'------------------------------------------------------------------------------------------
+
+' Declaration variables
+Dim i As Integer
+Dim j As Integer
+i = 1
+j = 1
+Dim lnS(30000) As String
+Dim lnT(30000) As String
+'Redim lnT(30000)
+'Redim lnS(30000)
+
+' Open list to run files, run nested loop to output line by line
+Open File "C:\IAP\00004\data\New\SdmList.txt" for Input as #1
+Do While Not EOF(1)
+j = 1
+Line Input #1,lnS(i)
+
+Dim lnN(30000) As String
+Dim lnO(30000) As String
+Dim lnF(30000) As String
+
+lnN(i) = Mid$(lnS(i),1,6)
+lnO(i) = Mid$(lnS(i),9,24)
+lnF(i)= lnN(i)+lnO(i)
+
+Print lnF(i)
+
+'------------------------------------------------------------------------------------------
+' First Record Store 
+
+If i = 1 Then
+'Print lnS(i) +" j="+j+" i="+i ' Test first loop output
+Open File "C:\IAP\00004\data\New\"+ lnS(i) for Input as #2
+Open File "C:\IAP\00004\data\New\Combined\"+lnF(i) for Output as #3
+Do While Not EOF(2)
+Line Input #2, lnT(j)
+'Print #3,SubFold+lnT(j)
+Print #3,lnT(j)
+j =j+1
+
+Loop
+Close File #2
+Close File #3
+
+Print lnS(i)+"  This record is the first of the month"
+i =i+1
+
+'------------------------------------------------------------------------------------------
+' Unique Record Store 
+
+ElseIf lnN(i)<>lnN(i-1) Then
+'Print lnS(i) +" j="+j+" i="+i ' Test first loop output
+Open File "C:\IAP\00004\data\New\"+lnS(i) for Input as #2
+Open File "C:\IAP\00004\data\New\Combined\"+lnF(i) for Output as #3
+Do While Not EOF(2)
+Line Input #2, lnT(j)
+'Print #3,SubFold+lnT(j)
+Print #3,lnT(j)
+j =j+1
+
+Loop
+Close File #2
+Close File #3
+
+Print lnS(i)+"  This record is the first of the month"
+i =i+1
+
+'------------------------------------------------------------------------------------------
+'Otherwis check for same month and append
+
+ElseIf  lnN(i)=lnN(i-1) Then
+Print lnS(i)+"  This record needs to be combined"
+Open File "C:\IAP\00004\data\New\"+lnS(i) for Input as #2
+Open File "C:\IAP\00004\data\New\Combined\"+lnF(i) for Append as #3
+Do While Not EOF(2)
+Line Input #2, lnT(j)
+'Print #3,SubFold+lnT(j)
+Print #3,lnT(j)
+j =j+1
+
+Loop
+Close File #2
+Close File #3
+
+End IF
+'------------------------------------------------------------------------------------------
+Loop
+Close File #1
+
+'=================================================================================================
+End Sub
+
+
+
+
+
+

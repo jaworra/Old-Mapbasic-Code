@@ -1,0 +1,508 @@
+' Programmer: John Worall
+' Date:            06/06/2013
+' Description:     Reads KML file for Bridge location identification
+' Bugs/Updates Required: 
+
+'Sample Structure XML 
+'<Placemark>
+'		<name>Steel Bridge (AR 0.580 km)</name>
+'		<description>Type - Steel
+'
+'Location - 0.580 km
+'
+'Length -  63 metres</description>
+'		<LookAt>
+'			<longitude>153.0279957975252</longitude>
+'			<latitude>-27.56151511990557</latitude>
+'			<altitude>0</altitude>
+'			<heading>0.004025502773274116</heading>
+'			<tilt>0</tilt>
+'			<range>275.487796860324</range>
+'			<altitudeMode>relativeToGround</altitudeMode>
+'			<gx:altitudeMode>relativeToSeaFloor</gx:altitudeMode>
+'		</LookAt>
+'		<styleUrl>#msn_ylw-pushpin0</styleUrl>
+'		<Point>
+'			<altitudeMode>absolute</altitudeMode>
+'			<coordinates>153.0280576320454,-27.56200878656702,9.817140775289973</coordinates>
+'		</Point>
+'	</Placemark>
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+
+Declare Sub Main
+
+Sub Main
+Dim pln As Object
+Dim ln,TableName,InputCord,fileName As String
+Dim Xl,Yl As Float
+Dim Zh As String 
+Dim NumPt,SpacePos,SpacePos1 As Integer
+
+Print Chr$(12)
+close all
+fileName = FileOpenDlg("G:\Geospatial\GIS\JohnW\Request\Wayne", "Dc_track_2014_6_6_13_14", "*.KML", "open KML file")
+If fileName = "" Then
+	Exit Sub
+End If
+Open File fileName For Input As 1
+TableName = PathToTableName$(fileName)
+
+Create Table TableName 
+	(Identifier Char(50),Lotplan Char(100),Lga Char(50),Road_no Char(20),FileNo Char(50),theirref Char(50),Corres1purpose Char(50),Apptype Char(50),Triggertype Char(50),Applicant Char(50),Location Char(50),general_description Char(250),corres1folio Char(50),Corres1date Char(50),Corres1author Char(50),
+	 Corres1subject Char(50),Setback_issues Char(10),Legal_issues Char(10),Traffic_issues Char(10),Funding_issues Char(10),Access_issues Char(10),Works_issues Char(10),Stormwater_issues Char(10),Noise_issues Char(10),No_requirements Char(10),Land_requirements Char(10),Compliance Char(10),
+	 See_notes Char(10),notes Char(250),Actionofficer Char(10),status Char(100),AllLotPlan Char(100),Exclude_from_IPA Char(10),Time_Date_Received Char(50),Time_Date_Due Char(50),Time_Date_Completed Char(50),Time_Days_Expired Char(100),Time_Days_Stopped Char(100),Time_Days_To_Respond Char(100),
+	 Time_Days_Extended Char(50),Time_Days_Total Char(50),Time_Clock_Stopped_yn Char(50),LastUpdate Char(50))
+
+Create Map For TableName
+Map From TableName 
+Set Map CoordSys Earth Projection 1,104  ' Sets projection WGS84
+
+
+
+'Initialise Variables
+NumPt = 1
+Create Pline Into Variable pln 0
+
+Dim keyWord,name,descripStr,tempStr As String
+Dim foundKeyWord,closeKeyWord As Integer
+
+Dim long,lat As String
+Dim startReading,pointRead,description As Logical
+Dim pointObj,DcObj,DcObj2 as Object
+Dim coordLn,coordLn2,coordLn3,noMoreObj As String
+Dim startPt As Integer
+
+'Dim ID_No,ID_App,ID_Deve,ID_Lotname,ID_Area,ID_Date, ID_FileNo As String
+Dim Id_ident,Id_lot,Id_lga,Id_roadno,Id_file,Id_therref,Id_Coors1p,Id_apptype,Id_trigger,Id_applicant,Id_loc,Id_gerdes,Id_corres1f,Id_corres1d,Id_corres1a As String
+Dim Id_corres1s, Id_setb,Id_legal,Id_traff,Id_fund,Id_acces,Id_works,Id_storm,Id_noise,Id_noreq,Id_landreq,Id_comp,Id_seenots,Id_notes,Id_actionOff,Id_status,Id_alllot As String
+Dim Id_excIPA,Id_tdr,Id_tdd,Id_tdc,Id_tde,Id_tds,Id_tdtr,Id_tdex,Id_tdt,Id_tcs,Id_lastup As String
+Dim numOfNodes,i As Integer
+Dim coordAry() As String
+
+startReading = False
+pointRead = False
+description = False
+
+Do While Not EOF(1)
+	Line Input #1, ln
+
+	If InStr(1,ln,"<Placemark>") > 0 Then 
+		startReading = True
+		Print "ENTERS >>>> "
+	End If
+
+	If startReading = True Then
+	
+		'ID Assignment
+		If InStr(1,ln,">Identifier<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_ident = Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			
+		End If
+
+		'Description application
+		If InStr(1,ln,">Lotplan<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_lot = Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))			
+		End If	
+		
+		'Description Development 
+		If InStr(1,ln,">Lga<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_lga= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+		'Description Lot_plan
+		If InStr(1,ln,">Road_no<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_roadno= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+			
+		'Description Area
+		If InStr(1,ln,">File<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_file= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+
+		'Description Date
+		If InStr(1,ln,">theirref<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_therref= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+		'Description File Number
+		If InStr(1,ln,">Corres1purpose<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_Coors1p= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If		
+		
+	
+		
+			'ID Assignment
+		If InStr(1,ln,">Apptype<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_apptype = Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+		End If
+	
+	
+	
+		'Description application
+		If InStr(1,ln,">Triggertype<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_trigger = Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))			
+		End If	
+		
+		'Description Development 
+		If InStr(1,ln,">Applicant<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_applicant = Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+		'Description Lot_plan
+		If InStr(1,ln,">Location<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_loc= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+			
+		'Description Area
+		If InStr(1,ln,">general_description<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_gerdes= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		'Description Date
+		If InStr(1,ln,">corres1folio<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_corres1f= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+		'Description File Number
+		If InStr(1,ln,">Corres1date<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_corres1d= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If		
+			
+
+			'ID Assignment
+		If InStr(1,ln,">Corres1author<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_corres1a = Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+		End If
+	
+		'Description application
+		If InStr(1,ln,">Corres1subject<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_corres1s = Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))			
+		End If	
+		
+		'Description Development 
+		If InStr(1,ln,">Setback_issues<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_setb= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+		'Description Lot_plan
+		If InStr(1,ln,">Legal_issues<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_legal= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+			
+		'Description Area
+		If InStr(1,ln,">Traffic_issues<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_traff= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		'Description Date
+		If InStr(1,ln,">Funding_issues<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_fund= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+		'Description File Number
+		If InStr(1,ln,">Access_issues<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_acces= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If		
+					
+
+		'ID Assignment
+		If InStr(1,ln,">Works_issues<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_works = Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+		End If
+	
+		'Description application
+		If InStr(1,ln,">Stormwater_issues<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_storm = Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))			
+		End If	
+		
+		'Description Development 
+		If InStr(1,ln,">Noise_issues<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_noise= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+		'Description Lot_plan
+		If InStr(1,ln,">No_requirements<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_noreq= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+			
+		'Description Area
+		If InStr(1,ln,">Land_requirements<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_landreq= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		'Description Date
+		If InStr(1,ln,">Compliance<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_comp= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+		'Description File Number
+		If InStr(1,ln,">See_notes<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_seenots= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If		
+				
+
+				
+		'Description Lot_plan
+		If InStr(1,ln,">notes<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_notes= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+			
+		'Description Area
+		If InStr(1,ln,">Actionofficer<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_actionOff= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		'Description Date
+		If InStr(1,ln,">status<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_status= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+		'Description File Number
+		If InStr(1,ln,">AllLotPlan<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_alllot= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If				
+		
+		
+
+					
+		'Description Lot_plan
+		If InStr(1,ln,">Exclude_from_IPA<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_excIPA= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+			
+		'Description Area
+		If InStr(1,ln,">Time_Date_Received<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_tdr= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		'Description Date
+		If InStr(1,ln,">Time_Date_Due<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_tdd= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+		'Description File Number
+		If InStr(1,ln,">Time_Date_Completed<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_tdc= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If					
+		
+
+		'Description Lot_plan
+		If InStr(1,ln,">Time_Days_Expired<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_tde= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+			
+		'Description Area
+		If InStr(1,ln,">Time_Days_Stopped<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_tds= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		'Description Date
+		If InStr(1,ln,">Time_Days_To_Respond<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_tdtr= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+		
+		'Description File Number
+		If InStr(1,ln,">Time_Days_Extended<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_tdex= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If					
+		
+
+		
+		
+		'Description File Number
+		If InStr(1,ln,">Time_Days_Total<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_tdt= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If					
+				If InStr(1,ln,">Time_Clock_Stopped_yn<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_tcs= Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+			
+		'Description Area
+		If InStr(1,ln,">LastUpdate<") > 0 Then
+			'Print Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))
+			Id_lastup=Mid$(ln,InStr(1,ln,"</td><td>")+9,(InStr(1,ln,"</td></tr>")) - (InStr(1,ln,"</td><td>")+9))				
+		End If
+
+
+		If InStr(1,ln,"<coordinates>") > 0 Then
+			numOfNodes=0
+			noMoreObj="F"
+			coordLn = ""
+			
+			'Print "a"			
+			'Print ln
+
+
+
+			'Check if there is more than one coordinate
+			If InStr(1,ln,"</coordinates>") Then ' Single point
+				Print "Create point object"
+				coordLn = Mid$(ln,InStr(1,ln,"<coordinates>")+13,InStr(1,ln,"</coordinates>")-InStr(1,ln,"<coordinates>")+13)     'reasing ln values to just includes coordinates				
+				long = Mid$(coordLn,1,InStr(1,coordLn,",")-1)
+				coordLn2 =  Mid$(coordLn,InStr(1,coordLn,",")+1,Len(coordLn) - InStr(1,coordLn,","))
+				lat = Mid$(coordLn2,1,InStr(1,coordLn2,",")-1)
+				
+				'Print long & "   ---long" 
+				'Print lat & "   ---lat" 
+				Create Point Into Variable DcObj(long,lat)
+
+			Else 'Polyline	
+				Print "Create Pline object"
+				Line Input #1, ln	
+				Do While Not InStr(1,ln,"</coordinates>")
+					numOfNodes=numOfNodes+1
+					ReDim coordAry(numOfNodes) 
+					
+					'If last character is ",0" then take out
+					'adds | to end of coordinates
+					If Right$(ln,2) = ",0" Then
+						'ln = Left$(ln,len(ln)-2) & "|"
+						ln = Left$(ln,len(ln)-2) & ","
+					End If
+					coordAry(numOfNodes)=LTrim$(ln)
+					coordLn = coordLn & LTrim$(ln)
+					Line Input #1, ln		
+				Loop
+				
+				coordLn = Left$(ln,len(ln)-1) & "-"  'Change the last charcter to "-"
+				
+				Print "b"
+				'Print coordLn 
+
+				
+				Create Pline Into Variable DcObj 0 'Create Pline with no coordinates
+					
+					For i=1 To numOfNodes
+						coordLn=coordAry(i)
+						long = Mid$(coordLn,1,InStr(1,coordLn,",")-1)
+						coordLn2 =  Mid$(coordLn,InStr(1,coordLn,",")+1,Len(coordLn) - InStr(1,coordLn,","))
+						lat = Mid$(coordLn2,1,InStr(1,coordLn2,",")-1)	
+						Alter Object DcObj
+							Node Add(long,lat)
+					Next
+				
+				'Check here if start node matches end node - then convert to polygon if true
+				If ObjectNodeX(DcObj,1,1)= ObjectNodeX(DcObj,1,numOfNodes) and ObjectNodeY(DcObj,1,1)=ObjectNodeY(DcObj,1,numOfNodes) Then
+					DcObj=ConvertToRegion(DcObj)
+				End If 
+				
+				Do While Not InStr(1,ln,"</Placemark>") 'Check to see if there mutltiple objects in the same record
+					Print "MultiObject"
+					Print ln
+					Line Input #1, ln
+					'Print ln
+					
+					numOfNodes=0
+					Do While Not InStr(1,ln,"</coordinates>")
+						numOfNodes=numOfNodes+1
+						ReDim coordAry(numOfNodes) 
+					
+						'If last character is ",0" then take out
+						'adds | to end of coordinates
+						If Right$(ln,2) = ",0" Then
+							'ln = Left$(ln,len(ln)-2) & "|"
+							ln = Left$(ln,len(ln)-2) & ","
+						End If
+						coordAry(numOfNodes)=LTrim$(ln)
+						coordLn = coordLn & LTrim$(ln)	
+						Line Input #1, ln		
+					Loop
+				
+					coordLn = Left$(ln,len(ln)-1) & "-"  'Change the last charcter to "-"
+				
+					Print "Mulit B"
+					'Print coordLn 
+
+					Create Pline Into Variable DcObj2 0 'Create Pline with no coordinates
+					
+					For i=1 To numOfNodes
+						coordLn=coordAry(i)
+						long = Mid$(coordLn,1,InStr(1,coordLn,",")-1)
+						coordLn2 =  Mid$(coordLn,InStr(1,coordLn,",")+1,Len(coordLn) - InStr(1,coordLn,","))
+						lat = Mid$(coordLn2,1,InStr(1,coordLn2,",")-1)	
+						Alter Object DcObj2
+							Node Add(long,lat)
+					Next
+					
+					'If 'Check if polyline closes - if it does convert to polygon
+					'Check here if start node matches end node - then convert to polygon if true
+					If ObjectNodeX(DcObj2,1,1)= ObjectNodeX(DcObj2,1,numOfNodes) and ObjectNodeY(DcObj2,1,1)=ObjectNodeY(DcObj2,1,numOfNodes) Then
+						DcObj2=ConvertToRegion(DcObj2)
+					End If 
+
+
+					DcObj= Combine(DcObj,DcObj2)
+
+				Loop	
+				
+				End If
+
+		End If
+		
+		If InStr(1,ln,"</Placemark>") > 0 and startReading = True Then
+		'startReading = False
+		print "Point Created...."
+		
+'			If len(lat)>0 Then 
+'				Insert Into TableName (obj,Identifier,Lotplan,Lga,FileNo,theirref)
+'					Values(DcObj,Id_ident,Id_lot,Id_lga,Id_roadno,Id_file)
+'			End If
+
+			If len(lat)>0 Then 
+				Insert Into TableName (obj,Identifier,Lotplan,Lga,Road_no,FileNo,theirref,Corres1purpose,Apptype,Triggertype,Applicant,Location,general_description,corres1folio,Corres1date,Corres1author,Corres1subject,Setback_issues,Legal_issues,Traffic_issues,Funding_issues,Access_issues,Works_issues,Stormwater_issues,Noise_issues,No_requirements,Land_requirements,Compliance,See_notes,notes,Actionofficer,status,AllLotPlan,Exclude_from_IPA,Time_Date_Received,Time_Date_Due,Time_Date_Completed,Time_Days_Expired,Time_Days_Stopped,Time_Days_To_Respond,Time_Days_Extended,Time_Days_Total,Time_Clock_Stopped_yn,LastUpdate)	
+					Values(DcObj,Id_ident,Id_lot,Id_lga,Id_roadno,Id_file,Id_therref,Id_Coors1p,Id_apptype,Id_trigger,Id_applicant,Id_loc,Id_gerdes,Id_corres1f,Id_corres1d,Id_corres1a,Id_corres1s, Id_setb,Id_legal,Id_traff,Id_fund,Id_acces,Id_works,Id_storm,Id_noise,Id_noreq,Id_landreq,Id_comp,Id_seenots,Id_notes,Id_actionOff,Id_status,Id_alllot,Id_excIPA,Id_tdr,Id_tdd,Id_tdc,Id_tde,Id_tds,Id_tdtr,Id_tdex,Id_tdt,Id_tcs,Id_lastup)
+			End If
+						
+		End If
+		
+	End If
+
+Loop
+	Commit table TableName 
+	Set Map Zoom Entire Layer TableName
+	Set map redraw on
+End Sub
+
+
+

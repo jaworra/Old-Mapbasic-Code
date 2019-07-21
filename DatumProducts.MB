@@ -1,0 +1,98 @@
+' Program to separte Datum products into regions to distribute
+' Programmer: John Worall
+' Date:             09/01/2012
+' Description:    Program to separte Datum products into regions to distribute
+' To Add: Count coloumn in intersect table and then run sql based on number of columns - Less likely to produce error with table schemes changing - Also avoid > 1000 char limit in Select input
+' Requirments : Boundaries objects split into below tables under specified locations. 
+' Requirments : Tables to be open in mapper...
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+Declare Sub Main
+
+Sub Main
+
+Dim regions(12) As String
+Dim out_dir As String
+out_dir = "C:\GEO_TEMP\XXDelete\"
+
+regions(1) = "CWR"
+regions(2) = "DDR"
+regions(3) = "FNR"
+regions(4) = "FTR"
+regions(5) = "MTR"
+regions(6) = "MWR"
+regions(7) = "NCR"
+regions(8) = "NTR"
+regions(9) = "NWR"
+regions(10) = "SCR"
+regions(11) = "SWR"
+regions(12) = "WBR"
+
+
+Dim BufferLGAS As String
+BufferLGAS = "_100km"
+
+'Intersect Section for AHD_Sections for Regions.
+Dim x as Integer
+Dim cmd_AHDSupp,cmd_AHDJps,cmd_AHD  As String 
+
+x =1
+For x = 1 to 12
+
+' ---------------------------------------Run intersect command of Regional Areas for AHD Section---------------------------------------
+Run command "Select AHD_Sections.Section from AHD_Sections,"&regions(x)&"_Region_Boundaries where "&regions(x)&"_Region_Boundaries.Obj Intersects AHD_Sections.Obj Into Sel_TEST Browse * From Sel_TEST"
+Commit Table Sel_TEST
+As out_dir+"AHD_Sections_"+regions(x)
+
+' ---------------------------------------Run intersect command of Regional Areas for QEHA Measurements---------------------------------------
+Run command "Select QEHA_Measurements.ObsId, QEHA_Measurements.Type, QEHA_Measurements.Source, QEHA_Measurements.Ignore, QEHA_Measurements.Stn1, QEHA_Measurements.Stn2,QEHA_Measurements.Stn3, QEHA_Measurements.Value, QEHA_Measurements.StdDev, QEHA_Measurements.Correction, QEHA_Measurements.NStat, QEHA_Measurements.TStat, QEHA_Measurements.Reliability, QEHA_Measurements.obj from QEHA_Measurements,"&regions(x)&"_Region_Boundaries where "&regions(x)&"_Region_Boundaries.Obj Intersects QEHA_Measurements.obj Into Sel_TEST Browse * From Sel_TEST"
+Commit Table Sel_TEST
+As out_dir+"QEHA_Measurements_"+regions(x)
+
+' ---------------------------------------Run a buffer around dataset of 100K for point datset query ---------------------------------------
+'Write for dynamic buffer here!
+'Dim o_region,o_regionOrg As Object
+'o_regionOrg = "&regions(x)&"_Region_Boundaries.Obj 
+'o_region = Buffer(o_regionOrg,12,10,"m")
+'Print "Object Region Query"
+
+
+' ---------------------------------------AHD
+Run command "Select * from AHD,"&regions(x)&"_Region_Boundaries_100km where "&regions(x)&"_Region_Boundaries_100km.Obj Intersects AHD.obj Into Sel_TEST Browse * From Sel_TEST"
+Commit Table Sel_TEST
+As out_dir+"AHD_"+regions(x)
+
+cmd_AHD =  "Alter Table AHD_"+regions(x)+" (Drop regionname,regioncode)"
+Open Table out_dir+"AHD_"+regions(x) Interactive
+Run command cmd_AHD
+
+
+' ---------------------------------------AHD_Supp
+Run command "Select * from AHD_Supp,"&regions(x)&"_Region_Boundaries_100km where "&regions(x)&"_Region_Boundaries_100km.Obj Intersects AHD_Supp.obj Into Sel_TEST Browse * From Sel_TEST"
+Commit Table Sel_TEST
+As out_dir+"AHD_Supp_"+regions(x)
+
+cmd_AHDSupp =  "Alter Table AHD_Supp_"+regions(x)+" (Drop regionname,regioncode)"
+Open Table out_dir+"AHD_Supp_"+regions(x) Interactive
+Run command cmd_AHDSupp
+
+
+' ---------------------------------------AHD_JPs
+Run command "Select * from AHD_JPs,"&regions(x)&"_Region_Boundaries_100km where "&regions(x)&"_Region_Boundaries_100km.Obj Intersects AHD_JPs.obj Into Sel_TEST Browse * From Sel_TEST"
+Commit Table Sel_TEST
+As out_dir+"AHD_JPs_"+regions(x)
+
+cmd_AHDJps =  "Alter Table AHD_JPs_"+regions(x)+" (Drop regionname,regioncode)"
+Open Table out_dir+"AHD_JPs_"+regions(x) Interactive
+Run command cmd_AHDJps
+
+Next
+
+Print "--------------------------------------------------------------------------------------------------------------------"
+Print "Succesfully Finished"
+Print "--------------------------------------------------------------------------------------------------------------------"
+
+End Sub

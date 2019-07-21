@@ -1,0 +1,303 @@
+'================================================================================================================='
+'																																	'
+'Programmer: 		John Worrall																								'
+'Last Update: 	09/01/2012																										'
+'Version: 			1.0																												'
+'																																	'
+'Description: 																													'
+'			Reads txt label GRID Files from ALS and creates box boundaries	
+'		    Assumes Txt file is top left corner of Box																												'
+'TODO:																																'
+'																																	'
+'================================================================================================================='
+
+
+
+Include "MAPBASIC.DEF"
+Include "ICONS.DEF"
+
+Declare Sub Main
+Declare Sub GetBoundary
+Declare Function ExtractCoordsys() As Integer
+Declare Function ExtractBoundary(ByVal seeked As Logical, foundModel As Logical) As Object
+Declare Sub DeleteBoundaries
+
+
+Sub Main
+
+	Create ButtonPad "Get Boundary" As 
+		PushButton 
+			Calling GetBoundary 
+			Icon MI_ICON_POLYGON
+			HelpMsg "Create Boundary Box from Txt File"
+
+End Sub
+
+
+
+Sub GetBoundary
+	
+	'Open 12da File
+	Dim _12daFilePath As String
+	_12daFilePath = FileOpenDlg("","","12da","Open 12da File")
+	If _12daFilePath = "" Then
+		Exit Sub
+	End If
+	Save File _12daFilePath As "C:\tmp12da.12da"
+	
+
+	'Find Projection System
+	Dim startOfBoundary As Integer
+	startOfBoundary = -1
+
+	Dim srvFileNum As String
+	Dim projSys As Integer
+	
+	Dialog Title "12da Boundary Import"
+		Control StaticText
+			Title "Survey File Number: "
+			Position 5, 5
+		Control EditText
+			Value ""
+			Into srvFileNum
+			ID 1
+			Position 110, 3 Width 100
+
+		Control StaticText
+			Title "Projection System: "
+			Position 5, 25
+		Control PopupMenu
+			Title "MGA94 Zone 55;MGA94 Zone 56;Get from Metadata;More options... (Press OK)"
+			Value 2
+			ID 2
+			Into projSys
+			Position 110, 23 Width 100
+		
+		Control OKButton
+			Position 5, 45 Width 100
+		Control CancelButton
+			Position 110, 45 Width 100
+	If Not CommandInfo(CMD_INFO_DLG_OK) Then
+		Kill "C:\tmp12da.12da"
+		Exit Sub
+	End If
+	Open File "C:\tmp12da.12da" For Input As #1
+	Dim ln, projStr As String
+	ln = ""
+	Print "======================================="
+	If projSys = 3 Then
+		projStr = ""
+		Print "Finding Projection System..."
+		Do While Not EOF(1)
+
+			Line Input #1, ln
+			'Find Metadata Model
+			If Like(ln, "%name _SURVEY METADATA%", "") Or Like(ln, "%model%SURVEY METADATA%", "") Then		'using underscore instead of quote character
+				Dim sys As Integer
+				sys = ExtractCoordsys()
+				If sys = -1 Then
+					'prompt user for projection system if the one in metadata isn't supported
+					projStr = ChooseProjection$( "MGA Zone 56 (GDA94)", False)
+					If projStr = "" Then
+						Close File #1
+						Kill "C:\tmp12da.12da"
+						Exit Sub
+					Else
+						Run Command "Set " + projStr
+						Seek #1, 1
+					End If
+				Else
+					Set Coordsys Earth Projection 8, 116, "m", sys, 0, 0.9996, 500000, 10000000
+				End If
+				Exit Do
+
+			ElseIf Like(ln, "%model%SURVEY BOUNDARY%", "") OR Like(ln, "%name%SURVEY BOUNDARY%", "") Then		'look for boundary data as well to speed up searching
+				startOfBoundary = Seek(1)
+			End If
+
+		Loop
+		If EOF(1) And projStr = "" Then
+			projStr = ChooseProjection$( "MGA Zone 56 (GDA94)", False)
+			If projStr = "" Then
+				Close File #1
+				Kill "C:\tmp12da.12da"
+				Exit Sub
+			Else
+				Run Command "Set " + projStr
+			End If
+		End If
+	ElseIf projSys = 4 Then
+		projStr = ChooseProjection$( "MGA Zone 56 (GDA94)", False)
+		If projStr = "" Then
+			Close File #1
+			Kill "C:\tmp12da.12da"
+			Exit Sub
+		Else
+			Run Command "Set " + projStr
+		End If
+	Else
+		'Set user-chosen projection system
+		Set Coordsys Earth Projection 8, 116, "m", 141 + 6*projSys, 0, 0.9996, 500000, 10000000
+	End If
+	'Go Back to start of boundary data if it was found while looking for metadata
+	If startOfBoundary <> -1 Then
+		Seek #1, startOfBoundary
+	End If
+
+
+	Print "Extracting Boundary Strings..."
+	If FileExists("C:\Boundaries_From_12da.TAB") Then
+		Open Table "C:\Boundaries_From_12da.TAB" As Boundaries_From_12da
+	Else
+		Create Table Boundaries_From_12da
+			( Survey_file_no Float, HOTLINK_SURVEY Char(40), HOTLINK_FIELDBOOK Char(40) )
+			File "C:\Boundaries_From_12da.TAB"
+		Create Map For Boundaries_From_12da
+	End If
+
+	Dim foundModel As Logical
+	Dim finalPline As Object
+	foundModel = True
+	finalPline = ExtractBoundary(startOfBoundary <> -1, foundModel)
+
+	If foundModel Then
+		Insert Into Boundaries_From_12da(Survey_file_no, Obj) Values ( Val(srvFileNum), finalPline )
+		Commit Table Boundaries_From_12da
+		Print "Done"
+	End If
+
+
+	Close File #1
+	Kill "C:\tmp12da.12da"
+End Sub
+
+
+Function ExtractCoordsys() As Integer
+	Dim ln As String
+	ln = ""
+	'Find the line specifying the projection system
+	Do While Not Like(ln, "%text%MGA94 Zone %", "")
+		Line Input #1, ln
+		If EOF(1) Then
+			'return error if reach end of file without finding projection system
+			Print "ERROR: No MGA94 Projection System found"
+			ExtractCoordsys = -1
+			Exit Function
+		End If
+	Loop
+
+	'Assume MGA94 and extract the zone
+	Do Case Mid$(ln, InStr(1, ln, "Zone ") + 5, 2)
+		Case "56"
+			ExtractCoordsys = 153
+		Case "55"
+			ExtractCoordsys = 147
+		Case Else
+			'return error if not zone 55 or zone 56
+			Print "ERROR: Unsupported Projection System - " + Mid$(ln, InStr(1, ln, "text") + 5, Len(ln))
+			ExtractCoordsys = -1
+	End Case
+	
+End Function
+
+
+Function ExtractBoundary(ByVal seeked As Logical, foundModel As Logical) As Object
+	Dim ln As String
+	ln = ""
+	Dim tmpOutput As Object
+	If Not seeked Then
+		Print "	Looking for SURVEY BOUNDARY model..."
+		Do While Not Like(ln, "%model%SURVEY BOUNDARY%", "") AND Not Like(ln, "%name%SURVEY BOUNDARY%", "")	'look for boundary data
+			Line Input #1, ln
+			If EOF(1) Then
+				Print "	ERROR: No SURVEY BOUNDARY model."
+				foundModel = False
+				Exit Function
+			End If
+			'Print ln
+		Loop
+	End If
+	Print "	Extracting Points..."
+	Dim stillInModel, tmpExists As Logical
+	stillInModel = True
+	tmpExists = False
+	Set Style Pen MakePen(1, 65, RED)
+	Set Style Brush MakeBrush(1, WHITE, WHITE)
+
+	Do While stillInModel
+		'Find start of string
+		Do While Not Like(ln, "%string super {%", "") And Not Like(ln, "%string 3d {%", "")
+			Line Input #1, ln
+			If EOF(1) Then
+				Exit Do
+			End If
+		Loop
+
+		'Find string name
+		Do While Not Like(ln, "%name%", "")
+			Line Input #1, ln
+			If EOF(1) Then
+				ln = ""
+				Exit Do
+			End If
+		Loop
+
+		'Check string name to make sure it's still a boundary
+		stillInModel = Like(ln, "%name%BY%", "") OR Like(ln, "%name%boundary%", "")
+
+		If stillInModel Then
+			
+			'Create temporary polyline
+			Dim tmpPolyline As Object
+			Create Region Into Variable tmpPolyline
+				0
+
+			'Find the start of the point data for the string
+			Do While Not Like(ln, "%data%{%", "")
+				Line Input #1, ln
+			Loop
+
+			'extract the point data into the polyline
+			Line Input #1, ln
+			Dim firstLn As String
+			firstLn = ln
+			Do While Not Like(ln, "%}%", "")
+				ln = LTrim$(ln)
+				Dim firstSpace, secondSpace As Integer
+				firstSpace = InStr(1, ln, " ")
+				secondSpace = InStr(firstSpace + 1, ln, " ")
+				Alter Object tmpPolyline
+					Node Add ( Val(Left$(ln, firstSpace - 1)), Val(Mid$(ln, firstSpace + 1, secondSpace - firstSpace - 1)) )
+				Line Input #1, ln
+			Loop
+			firstLn = LTrim$(firstLn)
+			Dim fs, ss As integer
+			fs = InStr(1, firstLn, " ")
+			ss = InStr(fs + 1, firstLn, " ")
+			Alter Object tmpPolyline
+				Node Add ( Val(Left$(firstLn, fs - 1)), Val(Mid$(firstLn, fs + 1, ss - fs - 1)) )
+			tmpPolyline = ConvertToPline(tmpPolyline)
+
+			'add the polyline to the output
+			If tmpExists Then
+				tmpOutput = Combine(tmpOutput, tmpPolyline)
+			Else
+				tmpOutput = tmpPolyline
+				tmpExists = True
+			End If
+		End If
+	Loop
+	ExtractBoundary = tmpOutput
+
+End Function
+
+
+Sub DeleteBoundaries
+
+	If FileExists("C:\Boundaries_From_12da.TAB") And Ask("Delete Boundaries_From_12da Table?", "OK", "Cancel") Then
+		Open Table "C:\Boundaries_From_12da.TAB" As Boundaries_From_12da
+		Drop Table Boundaries_From_12da
+	End If
+
+End Sub
+

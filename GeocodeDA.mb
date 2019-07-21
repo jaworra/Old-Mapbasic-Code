@@ -1,0 +1,734 @@
+'================================================================================================================='
+' Programmer:       John Worrall																								  '
+' Last Update:      26/11/2012																									  '
+'																																  '	
+' Description:    																								 				 '
+'  - Geocode records for Sound Division																						  '
+' 																												  					'
+'	Requires Input datset to georeferece to
+'	Currently using QLD_RD (Roads dataset), GNAF_MAP_LITE (GNAF), QLD_bpoly (current DCDB), OUTPUT1 (history DCDB) '
+'================================================================================================================='
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+
+Declare Sub Main
+
+'Geocode based on semi dynmaic segmentation of QLD RD
+Declare Sub GeoCodeLineProcess
+Declare Function GeoCodeLine(Byval ColNumStart As Integer, Byval ColNumEnd As Integer, Byval AddresNumber As Integer) As String
+
+'Geocode based on Address and Suburb using GNAF and PLI 
+Declare Sub AddressProcess
+Declare Function StringCompareAddress(ByVal AddressTbl As String, ByVal AddressCol As String, ByVal Suburb As String) As String 'Coordinate ' 1=found 2=
+
+'Geocode based on Lot and Plan number using current/history DCDB
+Declare Sub DCDBProcess
+Declare Function StringCompareDCDB(ByVal DCDBTbl As String, ByVal LotPlan As String) As String 'Coordinate ' 1=found 2=not found
+
+'Memory Management
+Declare sub closequerytables 
+
+Sub Main
+	Close all 
+	Print Chr$(12)
+
+	'Call GeoCodeLineProcess
+	Call AddressProcess
+	'Call DCDBProcess
+	
+	Print "Successfully Completed!"
+
+End Sub
+
+
+Sub DCDBProcess
+	
+Dim SucLogFile As String
+Dim NotSucFile As String
+Dim ReadString As String
+Dim ReadLine As String
+
+Dim FirCol As Integer
+Dim SecCol As Integer
+Dim StringComp As String
+
+Dim Cl1,Cl2,Cl3,Cl4,Cl5,Cl6,Cl7 As Integer
+
+'Read through Tables to compare
+Open Table "C:\Documents and Settings\jaworra\Desktop\GeoCode\QLD_bpoly.TAB" as DCDB   						'DCDB to geocode
+
+'Read input assign parse strings to compare
+ReadString ="C:\Documents and Settings\jaworra\Desktop\GeoCode\GNAFGeocodeNotFoundLog.csv"			'Input DCDB 
+
+'ReadString = FileOpenDlg("C:\TEMP\test","2DAdatabasegeocoding","csv","Table to Geocode")
+Open File ReadString For Input As #1
+'Store Results
+SucLogFile = "C:\Documents and Settings\jaworra\Desktop\GeoCode\DCDBCurrentGeocodeSuccessLog.csv"
+'SucLogFile = FileSaveAsDlg("","SuccesLog","csv","Save File")
+Open File SucLogFile For Output As #2
+NotSucFile = "C:\Documents and Settings\jaworra\Desktop\GeoCode\DCDBCurrentGeocodeNotFoundLog.csv"
+'NotSucFile = FileSaveAsDlg("","NotFoundLog","csv","Not Found File")
+Open File NotSucFile For Output As #3
+
+	Do While Not EOF(1)
+		Line Input #1,ReadLine
+		If Not EOF(1) Then	
+		Cl1 = InStr(1,ReadLine,"|")
+		Cl2 = InStr(Cl1+1,ReadLine,"|")
+		Cl3 = InStr(Cl2+1,ReadLine,"|")
+		Cl4 = InStr(Cl3+1,ReadLine,"|")
+		Cl5 = InStr(Cl4+1,ReadLine,"|")
+		Cl6 = InStr(Cl5+1,ReadLine,"|")
+		Cl7 = InStr(Cl6+1,ReadLine,"|")
+
+		StringComp = Mid$(ReadLine, Cl4+1,(Cl5-Cl4-1)) 'Geocode Address = column 6
+
+	
+			' Excludes empty fields
+			 If len(stringComp) <> 0 Then
+				Print " Searching for "+StringComp+" ......"
+				
+				'Output csv with successful returns
+				If StringCompareDCDB(DCDB,StringComp) = "0" Then  'UnSuccesful Return
+					Print #3, ReadLine
+					Print "Not Found! " 
+				Else 'Success
+					Print "Found! "
+					Print #2, ReadLine +"|"+StringCompareDCDB(DCDB,StringComp)+"|Lot DCDB Current (DCDB geocode)"
+				End If
+			Else
+			Print #3, ReadLine
+			Print "Not Found! " 
+			End If
+	
+		End If
+	Loop
+
+'Output csv without successful returns
+
+Close File #1
+Close File #2
+Close File #3
+Close Table DCDB
+
+'#############################################################
+'Now ReRun the same process on the DCDB history
+'#############################################################
+
+
+'Read through Tables to compare
+Open Table "C:\Documents and Settings\jaworra\Desktop\GeoCode\OUTPUT1.TAB" as DCDB   'DCDB to geocode
+
+'Read input assign parse strings to compare
+ReadString ="C:\Documents and Settings\jaworra\Desktop\GeoCode\DCDBCurrentGeocodeNotFoundLog.csv"			'Input DCDB 
+
+'ReadString = FileOpenDlg("C:\TEMP\test","2DAdatabasegeocoding","csv","Table to Geocode")
+Open File ReadString For Input As #1
+'Store Results
+SucLogFile = "C:\Documents and Settings\jaworra\Desktop\GeoCode\DCDBHistorySuccessLog.csv"
+'SucLogFile = FileSaveAsDlg("","SuccesLog","csv","Save File")
+Open File SucLogFile For Output As #2
+NotSucFile = "C:\Documents and Settings\jaworra\Desktop\GeoCode\DCDBHistroyGeocodeNotFoundLog.csv"
+'NotSucFile = FileSaveAsDlg("","NotFoundLog","csv","Not Found File")
+Open File NotSucFile For Output As #3
+
+	Do While Not EOF(1)
+		Line Input #1,ReadLine
+		If Not EOF(1) Then	
+		Cl1 = InStr(1,ReadLine,"|")
+		Cl2 = InStr(Cl1+1,ReadLine,"|")
+		Cl3 = InStr(Cl2+1,ReadLine,"|")
+		Cl4 = InStr(Cl3+1,ReadLine,"|")
+		Cl5 = InStr(Cl4+1,ReadLine,"|")
+		Cl6 = InStr(Cl5+1,ReadLine,"|")
+		Cl7 = InStr(Cl6+1,ReadLine,"|")
+		
+		StringComp = Mid$(ReadLine, Cl4+1,(Cl5-Cl4-1)) 'Geocode Address = column 6
+		Print Stringcomp
+		
+			' Excludes empty fields
+			 If len(stringComp) <> 0 Then
+				Print " Searching for "+StringComp+" ......"
+				
+				'Output csv with successful returns
+				If StringCompareDCDB(DCDB,StringComp) = "0" Then  'UnSuccesful Return
+					Print #3, ReadLine
+					Print "Not Found! " 
+				Else 'Success
+					Print "Found! "
+					Print #2, ReadLine +"|"+StringCompareDCDB(DCDB,StringComp)+"|Lot DCDB History (DCDB geocode)"
+				End If
+			Else
+			Print #3, ReadLine
+			Print "Not Found! " 
+			End If
+	
+		End If
+	Loop
+
+'Output csv without successful returns
+Close File #1
+Close File #2
+Close File #3
+Close Table DCDB
+	
+End Sub
+
+Function StringCompareDCDB(ByVal DCDBTbl As String, ByVal LotPlan As String) As String
+
+Dim i as Integer
+Dim DCDBLot As String
+Dim SoundLot As String
+Dim PreCoord As Float
+i =0
+
+Fetch First from DCDB
+Do While Not EOT(DCDB)
+	i=i+1
+	'Print DCDB.Lot_plan
+	DCDBLot = UCase$(DCDB.Lot_plan)
+	SoundLot = UCase$(LotPlan)
+	
+		If StringCompare(DCDBLot,SoundLot)= 0 Then
+			StringCompareDCDB = Format$(CentroidX(DCDB.Obj),"###.######")+"|"+Format$(CentroidY(DCDB.Obj),"###.######")
+			'StringCompareDCDB = Centroid(DCDB.Obj)  'Assighns Object - change function return type
+			Exit Sub
+		Else
+		StringCompareDCDB = "0"
+		End If
+
+	Fetch Next from DCDB
+Loop
+
+Print "The number of records searched and not found: "+i
+End Function
+
+
+
+Sub AddressProcess
+	
+'-------------------------------------------------------------------------------------------------------------------
+' Geocode with GNAF
+'-------------------------------------------------------------------------------------------------------------------
+Dim SucLogFile As String
+Dim NotSucFile As String
+Dim ReadString As String
+Dim ReadLine As String
+
+Dim FirCol As Integer
+Dim SecCol As Integer
+Dim StringComp As String
+
+
+Dim Cl1,Cl2,Cl3,Cl4,Cl5,Cl6,Cl7 As Integer
+Dim ClS1,ClS2,ClS3,ClS4,ClS5,ClS6,ClS7 As String
+Dim Suburb As String
+
+'Read through Tables to compare
+Open Table "C:\Documents and Settings\jaworra\Desktop\GeoCode\GNAF_MAP_LITE.TAB" as Address   	'Address to geocode
+
+'Read input assign parse strings to compare
+ReadString ="C:\Documents and Settings\jaworra\Desktop\GeoCode\LineGeocodeNotFoundLog.csv"			'Input Address
+'ReadString = FileOpenDlg("C:\TEMP\test","2DAdatabasegeocoding","csv","Table to Geocode")
+Open File ReadString For Input As #1
+'Store Results
+SucLogFile = "C:\Documents and Settings\jaworra\Desktop\GeoCode\GNAFGeocodeSuccesLog.csv"
+'SucLogFile = FileSaveAsDlg("","SuccesLog","csv","Save File")
+Open File SucLogFile For Output As #2
+NotSucFile = "C:\Documents and Settings\jaworra\Desktop\GeoCode\GNAFGeocodeNotFoundLog.csv"
+'NotSucFile = FileSaveAsDlg("","NotFoundLog","csv","Not Found File")
+Open File NotSucFile For Output As #3
+
+
+	Do While Not EOF(1)
+		Line Input #1,ReadLine
+		If Not EOF(1) Then	
+		Cl1 = InStr(1,ReadLine,"|")
+		Cl2 = InStr(Cl1+1,ReadLine,"|")
+		Cl3 = InStr(Cl2+1,ReadLine,"|")
+		Cl4 = InStr(Cl3+1,ReadLine,"|")
+		Cl5 = InStr(Cl4+1,ReadLine,"|")
+		Cl6 = InStr(Cl5+1,ReadLine,"|")
+		Cl7 = InStr(Cl6+1,ReadLine,"|")
+
+		StringComp = Mid$(ReadLine, Cl3+1,(Cl4-Cl3-1)) 'Geocode Address = column 6
+		Suburb = Mid$(ReadLine, Cl6+1,(Cl7-Cl6-1)) 	
+
+		
+			' Excludes empty fields
+			If Cl6 > 2 or Suburb <> "" Then  ' Should use and here
+				Print " Searching for "+StringComp+" ......"
+				
+				'Output csv with successful returns
+				If StringCompareAddress(Address,StringComp,Suburb) = "0" Then  'UnSuccesful Return
+					Print #3, ReadLine
+					Print "Not Found! " 
+				Else 'Success
+					Print "Found! "
+					Print #2, ReadLine +"|"+StringCompareAddress(Address,StringComp,Suburb)+"|Address GNAF (address geocode)"
+				End If
+			Else
+			Print #3, ReadLine
+			Print "Not Found! " 
+			End If
+		Call closequerytables
+		End If
+	Loop
+
+'Output csv without successful returns
+Close File #1
+Close File #2
+Close File #3
+Close Table Address	
+
+
+	
+End Sub
+
+Function StringCompareAddress(ByVal AddressTbl As String, ByVal AddressCol As String, ByVal Suburb As String) As String
+
+Dim i as Integer
+Dim StreetGNAF As String
+Dim StreetComp As String
+i =0
+
+'Narrow down search by doing a comparing all suburbs with three letter = helps with removal of transcript errors and improves performance
+'Saves temporary table to do query on 
+
+Dim FirstThree As String
+Dim SQLString As String
+Dim SelectChk As Integer
+
+FirstThree = Mid$(Suburb,1,3)
+
+SQLString = "Select * from " + Address+ " where SUBURB Like " + chr$(34) + FirstThree + chr$(37)+ chr$(34) + " into Selection"
+Run Command SQLString
+SelectChk = SelectionInfo(SEL_INFO_NROWS)		'Check to see if SQL has return results
+
+If SelectChk <> 0 and Len(Suburb) <> 0  Then 
+
+	Commit Table Selection As "C:\Documents and Settings\jaworra\Desktop\GeoCode\TempTbl.tab"
+	Open Table "C:\Documents and Settings\jaworra\Desktop\GeoCode\TempTbl.tab" as TempTbl
+	
+
+
+	'Run through Temporary table
+	Fetch First from TempTbl
+	Do While Not EOT(TempTbl)
+		i=i+1
+		StreetGNAF = UCase$(TempTbl.STREET)
+		StreetComp = UCase$(AddressCol)
+	
+			If StringCompare(StreetComp,StreetGNAF)= 0 Then
+				StringCompareAddress = Format$(CentroidX(TempTbl.Obj),"###.######")+"|"+Format$(CentroidY(TempTbl.Obj),"###.######")
+				Drop Table TempTbl
+				Exit Sub
+			Else
+			StringCompareAddress = "0"
+			End If
+
+		Fetch Next from TempTbl
+	Loop
+	Print "The number of records searched and not found: "+i
+	Drop Table TempTbl
+
+Else
+
+'Run through Address table
+	Fetch First from Address
+	Do While Not EOT(Address)
+		i=i+1
+		StreetGNAF = UCase$(Address.STREET)
+		StreetComp = UCase$(AddressCol)
+	
+			If StringCompare(StreetComp,StreetGNAF)= 0 Then
+				StringCompareAddress = Format$(CentroidX(Address.Obj),"###.######")+"|"+Format$(CentroidY(Address.Obj),"###.######")
+				Exit Sub
+			Else
+			StringCompareAddress = "0"
+			End If
+
+		Fetch Next from Address
+	Loop
+	Print "The number of records searched and not found: "+i
+End If
+End Function
+
+
+
+Sub GeoCodeLineProcess
+'-------------------------------------------------------------------------------------------------------------------
+' Interpolate Geocode with SDRN
+'-------------------------------------------------------------------------------------------------------------------
+
+Dim SucLogFile As String
+Dim NotSucFile As String
+Dim ReadString As String
+Dim ReadLine As String
+
+Dim FirCol As Integer
+Dim SecCol As Integer
+Dim StringComp As String
+
+Dim Colname As Integer
+
+Dim Cl1,Cl2,Cl3,Cl4,Cl5,Cl6,Cl7 As Integer
+Dim ClS1,ClS2,ClS3,ClS4,ClS5,ClS6,ClS7 As String
+Dim Suburb As String
+
+Dim AddressNumb As Float
+Dim AddressNumbLen As Integer
+Dim AddressNumbSt As Integer
+Dim AddressChar As String
+
+Dim SQLStringLine As String
+Dim SQLStringLineChk As Integer
+
+Dim LengthStr As Integer
+Dim TempStr As String
+Dim LeftStr As Integer
+Dim RightStr As Integer
+
+Dim LineCounter As Integer
+
+'Read through Tables to compare
+Open Table "C:\Documents and Settings\jaworra\Desktop\GeoCode\QLD_RD.TAB" as QLDRD   'Address to geocode
+
+'Read input assign parse strings to compare
+ReadString ="C:\Documents and Settings\jaworra\Desktop\GeoCode\DA database geocoding.csv"			'Input Address
+'ReadString = FileOpenDlg("C:\TEMP\test","2DAdatabasegeocoding","csv","Table to Geocode")
+Open File ReadString For Input As #1
+'Store Results
+SucLogFile = "C:\Documents and Settings\jaworra\Desktop\GeoCode\LineGeocodeSuccesLog.csv"
+'SucLogFile = FileSaveAsDlg("","SuccesLog","csv","Save File")
+Open File SucLogFile For Output As #2
+NotSucFile = "C:\Documents and Settings\jaworra\Desktop\GeoCode\LineGeocodeNotFoundLog.csv"
+'NotSucFile = FileSaveAsDlg("","NotFoundLog","csv","Not Found File")
+Open File NotSucFile For Output As #3
+
+Colname = 0
+OnError GoTo RecordError
+
+	Do While Not EOF(1)
+		Line Input #1,ReadLine
+		Colname = Colname+1
+		If Not EOF(1) and Colname <> 1 Then	' Do not execute on first line or last line
+		Cl1 = InStr(1,ReadLine,"|")
+		Cl2 = InStr(Cl1+1,ReadLine,"|")
+		Cl3 = InStr(Cl2+1,ReadLine,"|")
+		Cl4 = InStr(Cl3+1,ReadLine,"|")
+		Cl5 = InStr(Cl4+1,ReadLine,"|")
+		Cl6 = InStr(Cl5+1,ReadLine,"|")
+		Cl7 = InStr(Cl6+1,ReadLine,"|")
+
+		StringComp = Mid$(ReadLine, Cl3+1,(Cl4-Cl3-1)) 'Geocode Address = column 6
+		Suburb = Mid$(ReadLine, Cl6+1,(Cl7-Cl6-1)) 	
+		LineCounter = LineCounter+1
+			
+		'Clean Address Data
+		StringComp = UCase$(RTrim$(stringComp)) 'Uppercase and Right Trim
+		
+		If InStr(1,stringComp,"LOT") Then
+			LengthStr = len(stringComp)
+			stringComp = Mid$(stringComp,5,LengthStr-4)
+			'print stringComp 'Debug
+		   'Removes the lot from address. i.e Lot 200 Endeavour Boulevard becomes  200 Endeavour Boulevard
+		End If
+		
+		If InStr(1,stringComp,"/") Or InStr(1,stringComp,"-") Then 
+			LengthStr = len(stringComp)
+			stringComp = Val(stringComp)+" "+Mid$(stringComp,InStr(1,stringComp," ")+1,LengthStr)
+			'print stringComp 'Debug
+			'Removes the unit for address "/xx". i.e  4/12 BICENTENARY LANE becomes 4 BICENTENARY LANE
+		End If
+		
+		If InStr(1,stringComp,"-") Then 
+			LengthStr = len(stringComp)
+			stringComp = RTrim$(Left$(stringComp,InStr(1,stringComp,"-")-1))+ " " + LTrim$(Right$(stringComp,LengthStr-InStr(1,stringComp,"-")))
+			'print stringComp 'Debug
+			'Removes the second"-" . i.e 210 NERANG-SOUTHPORT ROAD becomes 210 NERANG SOUTHPORT ROAD
+		End If
+		
+		If InStr(1,stringComp,",") Then 
+				If InStr(1,stringComp,",") = len(stringComp) Then
+					stringComp = Left$(stringComp,len(stringComp)-1)
+					'Print stringComp 'Debug
+					'Removes the second "," at the end of string . i.e 10 O'KEEFE STREET, becomes 10 O'KEEFE STREET
+				End If
+		End If
+		
+		'Print StringComp +" Line:" + LineCounter
+			'Empty Field	
+			If len(stringComp) = 0 Then
+				Print #3, ReadLine
+				Print "Not Found!"	
+
+			ElseIf len(stringComp) <> 0 Then
+				'Print " Searching for "+StringComp+" ......"
+				StringComp = UCase$(RTrim$(stringComp))
+				Print StringComp
+				
+				'Gecode on line segement here.  (Takes the first number i.e 2649 - 2685 Beaudesert Road becomes 2649 Beaudesert Road)
+				AddressNumbLen = Len(StringComp)
+				AddressNumb = Val(StringComp)
+				AddressNumbSt = Len(AddressNumb)
+				AddressNumbSt = Len(Str$(AddressNumb))
+				AddressChar =  Mid$(StringComp,AddressNumbSt+2,AddressNumbLen)
+				
+				'No Number for street send to on error
+				If AddressNumb = 0 Then  
+					Print #3, ReadLine
+					Print "Not Found!"
+					GoTo NextLine
+				End If
+				
+				'Print chr$(34)+AddressNumb+chr$(34)+","+chr$(34)+AddressChar+chr$(34)
+				'Print "---------------------------------------------"
+				'Print AddressChar
+				
+				'Find Street and Address in Road dataset 
+				'SQLStringLine = "Select * from " + QLDRD+ " where STREET Like " + chr$(34) + chr$(37)+ AddressChar + chr$(34) + " into Selection"
+				SQLStringLine = "Select * from " + QLDRD + " where STREET = " + chr$(34) + AddressChar + chr$(34) + " And LOCALITY Like " + chr$(34) + chr$(37)+Suburb+chr$(37)+ chr$(34)+" into Selection"
+				Run Command SQLStringLine
+				SQLStringLineChk  = SelectionInfo(SEL_INFO_NROWS)		'Check to see if SQL has return results
+			
+
+					If SQLStringLineChk  <> 0 Then ' Proceed if the SQL returned results
+					Commit Table Selection As "C:\Documents and Settings\jaworra\Desktop\Delete2\TempTbl.tab"
+					Open Table "C:\Documents and Settings\jaworra\Desktop\Delete2\TempTbl.tab" as TempTbl
+					
+					'Find FromLeft vl
+					SQLStringLine = "Select * from " + TempTbl+ " where FROMLEFT <= " + AddressNumb +" AND TOLEFT >= " + AddressNumb +" order by FROMLEFT desc into Selection"
+					'SQLStringLine = "Select * from " + TempTbl+ " where FROMLEFT <= " + AddressNumb +" order by FROMLEFT desc into Selection"
+					Run Command SQLStringLine
+					SQLStringLineChk  = SelectionInfo(SEL_INFO_NROWS)		
+								
+								If SQLStringLineChk  <> 0 Then
+									Fetch First From Selection
+									'Map From Selection	' Delete this
+									Print #2, ReadLine +"|"+ GeoCodeLine(2,3,AddressNumb)	
+		
+								Else  ' No Selection	
+									SQLStringLine = "Select * from " + TempTbl+ " where FROMRIGHT <= " + AddressNumb +" AND TORIGHT >= " + AddressNumb +" order by FROMRIGHT desc into Selection"
+									Run Command SQLStringLine
+									SQLStringLineChk  = SelectionInfo(SEL_INFO_NROWS)		
+										
+										If SQLStringLineChk  <> 0 Then
+											Print #2, ReadLine +"|"+ GeoCodeLine(4,5,AddressNumb)
+										Else	
+											Print #3, ReadLine
+											Print "Not Found!"
+										End If
+								End If		
+						drop Table TempTbl			
+					Else
+						Print #3, ReadLine 
+						Print "Not Found!"
+						'No Selection found based on suburb and street
+					End If
+						
+			Else
+				NextLine:
+				OnError GoTo 0
+
+			' Less than two characters in street address 
+			End If
+			Call closequerytables
+		End If
+			If Colname = 1 Then
+				Print #2, ReadLine
+				Print #3, ReadLine
+			End If
+
+	Loop
+
+'Output csv without successful returns
+Close File #1
+Close File #2
+Close File #3
+Close Table QLDRD
+
+Exit Sub
+
+'Catches error like no number in street address
+RecordError:
+Print "Error - Skip record"
+Resume NextLine 
+
+End Sub
+
+Function GeoCodeLine(Byval ColNumStart As Integer, Byval ColNumEnd As Integer, Byval AddresNumber As Integer) As String 
+
+Dim FromSt,ToSt As Integer  ' DELETE THIS
+Dim SectionLine,NodeLine As Integer
+Dim DistanceNode As Integer
+Dim StartNodeX,StartNodeY, EndNodeX,EndNodeY As Float
+Dim ExitLoop As Logical
+Dim DistanceAlongLine As Integer
+Dim CircleObj,LineObj,IntersectObj As object
+Dim FinalCoordX,FinalCoordY As Float
+	
+Dim Xlong,YLat As Float
+
+Dim EndPoint As Logical
+Dim StartPoint As Logical
+
+If ColNumStart = 2 then 
+
+				'If address is not an excat match - calculate scale factor for interpolation
+				If Selection.Col2 = AddresNumber Then
+					StartPoint = True
+				ElseIf Selection.Col3 = AddresNumber Then
+					EndPoint = True
+				Else
+					'Print Selection.Col2 + " " + Selection.Col3
+					'Print Selection.Col3 - Selection.Col2 + "Addres total"
+					'Print ObjectLen(Selection.obj, "m") + "Length total"
+					'Print ObjectLen(Selection.obj, "m") / (Selection.Col3 - Selection.Col2) + "scale factor"
+					DistanceAlongLine = (AddresNumber - Selection.Col2) * ObjectLen(Selection.obj, "m") / (Selection.Col3 - Selection.Col2) 
+					'Check start point or end point <> AddresNumber
+				End If
+
+ElseIf  ColNumStart = 4 then 
+
+				'If address is not an excat match - calculate scale factor for interpolation
+				If Selection.Col4 = AddresNumber Then
+					StartPoint = True
+				ElseIf Selection.Col5 = AddresNumber Then
+					EndPoint = True
+				Else
+					'Print Selection.Col4 + " " + Selection.Col5
+					'Print Selection.Col5 - Selection.Col4 + "Addres total"
+					'Print ObjectLen(Selection.obj, "m") + "Length total"
+					'Print ObjectLen(Selection.obj, "m") / (Selection.Col5 - Selection.Col4) + "scale factor"
+					DistanceAlongLine = (AddresNumber - Selection.Col4) * ObjectLen(Selection.obj, "m") / (Selection.Col5 - Selection.Col4) 
+					'Check start point or end point <> AddresNumber
+				End If	
+End If
+
+		'Interpolate position 
+		If StartPoint = False AND EndPoint = False Then
+
+								'Print DistanceAlongLine + " Address along the line"
+								'Run through all nodes adds values 
+								'Print ObjectInfo(selection.obj,OBJ_INFO_NPNTS) ' number of nodes
+								
+								ExitLoop = False
+								'Loop through sections and within this loop thrugh nodes in current section
+								For SectionLine =1 To ObjectInfo(selection.obj,OBJ_INFO_NPOLYGONS)
+									For NodeLine =1 To ObjectInfo(selection.obj,OBJ_INFO_NPOLYGONS + SectionLine)
+									'Debug print out node points on a line
+									'Print "X:" & ObjectNodeX(selection.obj, SectionLine, NodeLine)
+									'Print "Y:" & ObjectNodeY(selection.obj, SectionLine, NodeLine)
+																		
+										If NodeLine <> 1 Then
+											'print SphericalDistance(Xlong,YLat, ObjectNodeX(selection.obj, SectionLine, NodeLine),ObjectNodeY(selection.obj, SectionLine, NodeLine), "m")
+											DistanceNode = DistanceNode+SphericalDistance(Xlong,YLat, ObjectNodeX(selection.obj, SectionLine, NodeLine),ObjectNodeY(selection.obj, SectionLine, NodeLine), "m")
+											'Print DistanceNode 'Added total distance
+										End If
+							
+										If DistanceNode > DistanceAlongLine Then  ' When the distance is greater than input exit and set variables
+											StartNodeX = Xlong
+											StartNodeY = YLat 
+											EndNodeX = ObjectNodeX(selection.obj, SectionLine, NodeLine)
+											EndNodeY = ObjectNodeY(selection.obj, SectionLine, NodeLine)
+											ExitLoop = True ' For parent loop
+											Exit For
+										End If
+									
+									Xlong = ObjectNodeX(selection.obj, SectionLine, NodeLine)
+									YLat = ObjectNodeY(selection.obj, SectionLine, NodeLine)
+									
+									'Debug Print out all nodes on selected line														
+									'Insert Into 
+									'WindowInfo(FrontWindow(), WIN_INFO_TABLE) (Object)
+									'Values (CreatePoint(Xlong, YLat))
+									
+									Next
+										If ExitLoop = True Then
+											Exit For
+										End If
+								Next
+
+							'Print DistanceNode
+							'Print DistanceAlongLine
+							'Print StartNodeX
+							'Print StartNodeY
+							'Print EndNodeX
+							'Print EndNodeY
+							'Print "-----------"
+
+							'Print DistanceNode - DistanceAlongLine + " distance to from end to start node" 'Debug
+							CircleObj = CreateCircle(EndNodeX, EndNodeY,DistanceNode - DistanceAlongLine)
+							LineObj = CreateLine(EndNodeX, EndNodeY,StartNodeX, StartNodeY)
+							IntersectObj = Overlap(CircleObj,LineObj)
+							FinalCoordX = ObjectNodeX(IntersectObj,1,2)
+							FinalCoordY = ObjectNodeY(IntersectObj,1,2)
+							
+							'Print "X:"+FinalCoordX+"   Y:"+FinalCoordY ' Output
+							Print "Found!"
+							GeoCodeLine = Format$(FinalCoordX,"###.######")+"|"+Format$(FinalCoordY,"###.######")+"| Address QLD_RLD (address geocode)"
+							
+							'Create points for debugs
+							Set Distance Units "m"
+							
+							' Create Start and End Point for line below
+							'Insert Into 
+							'WindowInfo(FrontWindow(), WIN_INFO_TABLE) (Object)
+							'Values (CreatePoint(StartNodeX, StartNodeY))
+							
+							'Insert Into 
+							'WindowInfo(FrontWindow(), WIN_INFO_TABLE) (Object)
+							'Values (CreatePoint(EndNodeX, EndNodeY))					
+							
+							'Create Line from above points
+							'Insert Into 
+							'WindowInfo(FrontWindow(), WIN_INFO_TABLE) (Object)
+							'Values (CreateLine(EndNodeX, EndNodeY,StartNodeX, StartNodeY))							
+							
+							'Create Circle 
+							'Insert Into 
+							'WindowInfo(FrontWindow(), WIN_INFO_TABLE) (Object)
+							'Values (CreateCircle(EndNodeX, EndNodeY,DistanceNode - DistanceAlongLine))							
+
+							''Create Intersect point with Circle and Line (distance on a point - cogo)
+							'Insert Into 
+							'WindowInfo(FrontWindow(), WIN_INFO_TABLE) (Object)
+							'Values (CreatePoint(ObjectNodeX(IntersectObj,1,2), (ObjectNodeY(IntersectObj,1,2))))	
+
+		Else 
+			If StartPoint = True Then 
+			'Start Point Coord	
+			FinalCoordX = ObjectNodeX(selection.obj,1,1)
+			FinalCoordY = ObjectNodeY(selection.obj,1,1)
+			'Print "X:"+FinalCoordX+"   Y:"+FinalCoordY ' Output
+			Print "Found!"
+			GeoCodeLine = Format$(FinalCoordX,"###.######")+"|"+Format$(FinalCoordY,"###.######")+"| Address QLD_RLD (address geocode)"
+			
+			ElseIf EndPoint = True Then
+			'Last Point Coord
+			FinalCoordX = ObjectNodeX(selection.obj,1,ObjectInfo(selection.obj,OBJ_INFO_NPOLYGONS))
+			FinalCoordY = ObjectNodeY(selection.obj,1,ObjectInfo(selection.obj,OBJ_INFO_NPOLYGONS))
+			'Print "X:"+FinalCoordX+"   Y:"+FinalCoordY ' Output
+			Print "Found!"
+			GeoCodeLine = Format$(FinalCoordX,"###.######")+"|"+Format$(FinalCoordY,"###.######")+"| Address QLD_RLD (address geocode)"
+			End If
+		End If
+		
+'End Program
+End Function
+
+
+sub closequerytables
+dim temptab1 as string
+dim i as integer
+for i = numtables() to 1 step -1
+temptab1=tableinfo(i,tab_info_name)
+if left$(temptab1,5)="Query" then
+close table temptab1
+end if
+next
+end sub

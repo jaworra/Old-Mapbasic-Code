@@ -1,0 +1,112 @@
+'================================================================================================================='
+' Programmer:       John Worrall																				  '
+' Last Update:      26/11/2012																					  '
+'																												  '	
+' Description:    																								  '
+'  - Geocode Lot Plan for Sound Division																  '
+' 																												  '
+'																											      '
+'================================================================================================================='
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+Declare Function StringCompareDCDB(ByVal DCDBTbl As String, ByVal LotPlan As String) As String 'Coordinate ' 1=found 2=not found
+Declare Sub Main
+
+Sub Main
+	
+Close all 
+Print Chr$(12)
+
+Dim SucLogFile As String
+Dim NotSucFile As String
+Dim ReadString As String
+Dim ReadLine As String
+
+Dim FirCol As Integer
+Dim SecCol As Integer
+Dim StringComp As String
+
+'Read through Tables to compare
+Open Table "\\Metdnw04\DATA2\spatialData\planningCadastre\dcdb\MTR\p_MTR.tab" as DCDB
+
+'Read input assign parse strings to compare
+ReadString ="C:\TEMP\test\2DAdatabasegeocoding.csv"
+'ReadString = FileOpenDlg("C:\TEMP\test","2DAdatabasegeocoding","csv","Table to Geocode")
+Open File ReadString For Input As #1
+'Store Results
+SucLogFile = "C:\Temp\SuccesLog.csv"
+'SucLogFile = FileSaveAsDlg("","SuccesLog","csv","Save File")
+Open File SucLogFile For Output As #2
+NotSucFile = "C:\Temp\NotFoundLog.csv"
+'NotSucFile = FileSaveAsDlg("","NotFoundLog","csv","Not Found File")
+Open File NotSucFile For Output As #3
+
+	Do While Not EOF(1)
+		Line Input #1,ReadLine
+		If Not EOF(1) Then	
+		FirCol = InStr(1,ReadLine,"|")
+		'SecCol = InStr(FirCol+1,ReadLine,"|")
+		StringComp = Mid$(ReadLine, 1, FirCol-1) 
+		
+			' Excludes empty fields
+			If FirCol > 2 Then
+				Print StringComp
+				
+				'Output csv with successful returns
+				If StringCompareDCDB(DCDB,StringComp) = "0" Then  'Succesful Return
+					Print "No Luck"
+					Print #3, ReadLine
+				Else 'No Success
+					Print "YES Found"
+					Print #3, ReadLine +"|"+StringCompareDCDB(DCDB,StringComp)
+				End If
+			
+			End If
+		End If
+	Loop
+Exit sub
+
+
+
+
+
+'Output csv without successful returns
+
+End Sub
+
+
+Function StringCompareDCDB(ByVal DCDBTbl As String, ByVal LotPlan As String) As String
+
+Dim i as Integer
+Dim DCDBLot As String
+Dim SoundLot As String
+Dim PreCoord As Float
+i =0
+
+Fetch First from DCDB
+Do While Not EOT(DCDB)
+	i=i+1
+	Print DCDB.Lot_plan
+	DCDBLot = UCase$(DCDB.Lot_plan)
+	SoundLot = UCase$(LotPlan)
+	
+		If StringCompare(DCDBLot,SoundLot)= 0 Then
+			StringCompareDCDB = Format$(CentroidX(DCDB.Obj),"###.######")+"|"+Format$(CentroidY(DCDB.Obj),"###.######")
+			'StringCompareDCDB = Centroid(DCDB.Obj)  'Assighns Object - change function return type
+			Exit Sub
+		Else
+		StringCompareDCDB = "0"
+		End If
+	
+		If i = 30 Then
+			Exit Sub
+		End If
+	Fetch Next from DCDB
+Loop
+
+Print "The number of records in table is "+i
+End Function
+

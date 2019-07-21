@@ -1,0 +1,177 @@
+' Programmer: John Worall
+' Date:             09/01/2012
+' Description:     Reads txt label GRID Files from ALS filenames and creates box boundaries	
+'		    		  Assumes Txt file is top left corner of Box
+' Bugs/Updates Required: 
+' > Field Entry for Attributes entry
+' > Prompt User for Projection/Zone settings
+' > Prompt User for Perimetre of Grid 
+
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+Include "menu.def"
+Include "icons.def"
+'*************************************************************
+Declare Sub Main
+Declare Sub GetFileNames (byval sPath As String, byval sFilespec As String, sList() As String, out_dir As String)
+Declare Sub CreateGrid (sList() As String, byval CountInt As Integer ,byval out_dir As String)
+Define MAX_PATH 260
+
+Type FILETIME
+	dwLowDateTime As Integer
+	dwHighDateTime As Integer
+End Type
+Type WIN32_FIND_DATA
+	dwFileAttributes As Integer
+	ftCreationTime As FILETIME
+	ftLastAccessTime As FILETIME
+	ftLastWriteTime As FILETIME
+	nFileSizeHigh As Integer
+	nFileSizeLow As Integer
+	dwReserved0 As Integer
+	dwReserved1 As Integer
+	cFileName As String * MAX_PATH
+	cAlternate As String * 14
+End Type
+
+Define INVALID_HANDLE_VALUE -1
+Declare Function FindFirstFile Lib "kernel32"
+	Alias "FindFirstFileA" (ByVal lpFileName As String, lpfindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindNextFile Lib "kernel32"
+	Alias "FindNextFileA" (ByVal hFindFile As Integer, lpFindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindClose Lib "kernel32"
+	Alias "FindClose" (ByVal hFindFile As Integer) As Integer
+
+
+Sub Main
+print Chr$(12)
+
+Dim sTables() As String
+If CommandInfo(CMD_INFO_DLG_OK) Then
+Dim in_file, in_dir,out_file,out_dir As String
+
+in_file = FileOpenDlg("", "", "TAB", "Open any tab file from a directory of rasters to be gridded")
+If in_file = "" Then
+	Exit Sub
+End If
+out_file = FileSaveAsDlg("", "", "TAB", "Save Grid of Rasters")
+If out_file = "" Then
+	Exit Sub
+End If
+in_dir = PathToDirectory$(in_file)
+out_dir = PathToDirectory$(out_file)
+Print "in_dir : " + in_dir
+Print "out_dir : " + out_dir
+End If
+Call GetFileNames (in_dir, "*.TAB", sTables, out_dir)
+
+Exit Sub
+
+'Open File FileOpenDlg("C:\", "", "*.*", "open") For Input As 1
+
+Dim ln As String
+Dim rct As Object
+
+Set CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000
+
+Create Table Rockhampton_tile_index (TILE_NAME Char(30))
+Create Map For Rockhampton_tile_index
+Map From Rockhampton_tile_index
+Set Map CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000
+Set Map XY Units "m"
+
+Do While Not EOF(1)
+	Line Input #1, ln
+	Create Region Into Variable rct 
+		1
+		4
+		(Int(Left$(ln, 6)), Int(Right$(ln, 7))) 
+		(Int(Left$(ln, 6)) + 2000, Int(Right$(ln, 7)))
+		(Int(Left$(ln, 6)) + 2000, Int(Right$(ln, 7)) - 2000)
+		(Int(Left$(ln, 6)), Int(Right$(ln, 7)) - 2000)
+		'(Int(Left$(ln, 6)), Int(Right$(ln, 7))
+		Pen MakePen(1, 2, BLACK)
+
+	Insert Into Rockhampton_tile_index 
+		(TILE_NAME, Obj) 
+		Values ( (Left$(ln, 6) + "_" + Right$(ln, 7) + "_1k") , rct )
+
+	Print Int(Left$(ln, 6)) + "  ,  " + Int(Right$(ln, 7))
+Loop
+
+Close File 1
+End Sub
+
+
+
+Sub GetFileNames (ByVal sPath As String, ByVal sFilespec As String, sList() As String, out_dir As String)
+Dim hFindFile, nStatus As Integer
+Dim f As WIN32_FIND_DATA
+Dim i As Integer
+
+hFindFile = FindFirstFile (sPath + sFilespec, f)
+If hFindFile <> INVALID_HANDLE_VALUE Then
+	Do
+		If (f.dwFileAttributes \ 16) Mod 2 = 0 Then
+			i = i + 1
+			ReDim sList(i)
+			sList(i) = f.cFilename
+			print sList(i)
+		End If
+		nStatus = FindNextFile (hFindFile, f)
+	Loop While nStatus = 1
+End If
+nStatus = FindClose (hFindFile)
+
+Call CreateGrid (sList(),i,out_dir)
+
+End Sub
+
+
+Sub CreateGrid (sList() As String , byval CountInt As Integer, byval out_dir As String)
+Dim i as Integer
+Dim ln As String
+Dim rct As Object
+
+Set CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000   'Zone56
+'Set CoordSys Earth Projection 8, 116, "m", 147, 0, 0.9996, 500000, 10000000		'Zone55
+
+
+Create Table Rockhampton_tile_index (TILE_NAME Char(30))
+Create Map For Rockhampton_tile_index
+Map From Rockhampton_tile_index
+Set Map CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000		'Zone56
+'Set Map CoordSys Earth Projection 8, 116, "m", 147, 0, 0.9996, 500000, 10000000		'Zone55
+
+Set Map XY Units "m"
+
+For i = 1 to CountInt
+ln = sList(i)
+
+Print ln
+	Create Region Into Variable rct 
+		1
+		4
+		(Val(Left$(ln, 6)),Val(Mid$(ln,8,7)))
+		(Val(Left$(ln, 6)) + 2000, Val(Mid$(ln,8,7)))
+		(Val(Left$(ln, 6)) + 2000, Val(Mid$(ln,8,7)) - 2000)
+		(Val(Left$(ln, 6)), Val(Mid$(ln,8,7)) - 2000)
+		Pen MakePen(1, 2, BLACK)
+
+	Insert Into Rockhampton_tile_index 
+		(TILE_NAME, Obj) 
+		Values ( (Left$(ln, 6) + "_" + Mid$(ln,8,7) + "_1k") , rct )
+
+		Print Val(Left$(ln, 6)) + "  ,  " + Val(Mid$(ln,8,7))
+
+Next
+
+End Sub
+
+
+
+
+
+

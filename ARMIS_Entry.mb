@@ -1,0 +1,238 @@
+' Programmer:       John Worrall
+' Date:             19/08/2013
+' Description:      GUI input table for ARMIS entry
+
+Include "menu.def"
+Include "mapbasic.def"
+Include "icons.def"
+Declare Sub Main
+
+Declare Sub RoadAsses
+Declare Sub about_sub
+Declare Sub exit_sub
+
+'Make the Menu
+Sub Main
+'GUI Option 2 - ButtonPad Bar
+Create ButtonPad "Native Title GUI" As PushButton
+Icon MI_ICON_LETTERS_W
+Calling RoadAsses
+HelpMsg "Update Regional_NT_Watercourse_Assess Table\n"
+
+Alter ButtonPad "Native Title GUI" Fixed
+Add Separator
+Add PushButton
+Icon MI_ICON_MAPSYMB_10
+Calling about_sub
+HelpMsg "About\n"
+
+Alter ButtonPad "Native Title GUI" Fixed
+Add Separator
+Add PushButton
+Icon MI_ICON_SIGNS_1
+Calling exit_sub
+HelpMsg "Exit\n"
+Alter ButtonPad "Native Title GUI" Fixed ToolbarPosition (2,0)
+End Sub
+
+Sub RoadAsses
+	
+Dim wCol1,wCol5,wCol6,wCol7,wCol8,wCol13 As String	
+Dim TblOpen As Logical
+Dim wCol2,wCol3,wCol4,wCol9,wCol10,wCol11 As Float
+Dim i,RowNum as integer
+Dim wCol12 As Time
+
+OnError Goto UpdateTblError
+AfterUpdateTblError:
+'Check table is open
+For i=1 to numtables()
+	If tableinfo(i,1) = "ARMIS_Entry" Then
+	TblOpen="True" 
+	End If
+Next
+
+If TblOpen = True Then 
+	Fetch Last from ARMIS_Entry
+	wCol1=ARMIS_Entry.Col1
+	wCol2=ARMIS_Entry.Col2
+	wCol3=ARMIS_Entry.Col3
+	wCol4=ARMIS_Entry.Col4
+	wCol5=ARMIS_Entry.Col5
+	wCol6=ARMIS_Entry.Col6
+	wCol7=ARMIS_Entry.Col7
+	wCol8=ARMIS_Entry.Col8
+	wCol9=ARMIS_Entry.Col9
+	wCol10=ARMIS_Entry.Col10
+	wCol11=ARMIS_Entry.Col11
+	wCol12=ARMIS_Entry.Col12
+	wCol13=ARMIS_Entry.Col13
+
+		'GUI
+		Dialog
+		Title "Update ARMIS Tables"
+		Control StaticText
+			Title "Category:"
+			Position 20,17
+		
+		Control EditText
+			Value wCol1
+			Position 20,27
+			Into wCol1
+		
+		Control StaticText
+			Title "Start_km:"
+			Position 120,17
+		
+		Control EditText
+			Value wCol2
+			Position 120,27
+			Into wCol2
+		'2		
+		Control StaticText
+			Title "End_km:"
+			Position 220,17
+		
+		Control EditText
+			Value wCol3
+			Position 220,27
+			Into wCol3
+		
+		Control StaticText
+			Title "Traffic_Management_Point:"
+			Position 320,17
+		
+		Control EditText
+			Value wCol4
+			Position 320,27
+			Into wCol4		
+		'4	
+		Control StaticText
+			Title "Location:"
+			Position 420,17
+		
+		Control EditText
+			Value wCol5
+			Position 420,27
+			Into wCol5
+		
+		Control StaticText
+			Title "Lane_Side:"
+			Position 20,47
+		
+		Control EditText
+			Value wCol6
+			Position 20,57
+			Into wCol6
+		'Row 2	
+		Control StaticText
+			Title "Road_Width_Length_m:"
+			Position 120,47
+		
+		Control EditText
+			Value wCol7
+			Position 120,57
+			Into wCol7
+		
+		Control StaticText
+			Title "Restriction_Information:"
+			Position 220,47
+		
+		Control EditText
+			Value wCol8
+			Position 220,57
+			Into wCol8
+		'2
+		Control StaticText
+			Title "Lat:"
+			Position 320,47
+		
+		Control EditText
+			Value wCol9
+			Position 320,57
+			Into wCol9
+		
+		Control StaticText
+			Title "Long:"
+			Position 420,47
+		
+		Control EditText
+			Value wCol10
+			Position 420,57
+			Into wCol10
+		'4
+		Control StaticText
+			Title "Average_Road_Width:"
+			Position 20,77
+		
+		Control EditText
+			Value wCol11
+			Position 20,87
+			Into wCol11
+		
+		Control StaticText
+			Title "Time_of_Day:"
+			Position 120,77
+		
+		Control EditText
+			Value wCol12
+			Position 120,87
+			Into wCol12
+		
+		'Row 3	
+		Control StaticText
+			Title "AADT:"
+			Position 220,77
+		
+		Control EditText
+			Value  wCol13
+			Position 220,87
+			Into  wCol13
+		
+			
+		Control GroupBox
+			Title "ARMIS Entry:"
+			Position 2, 4 Width 510 Height 105
+		'210
+		Control OKButton
+			Position 450,120
+		Control CancelButton
+			Position 390,120
+	
+		If CommandInfo(CMD_INFO_DLG_OK) Then
+			RowNum=ARMIS_Entry.RowID
+			Update ARMIS_Entry set Col1=wCol1,Col2=wCol2,Col3=wCol3,Col4=wCol4,Col5=wCol5,Col6=wCol6,Col7=wCol7,Col8=wCol8,Col9=wCol9,Col10=wCol10,Col11=wCol11,Col12=wCol12,Col13=wCol13
+			Where RowID = RowNum
+			Commit Table ARMIS_Entry
+		End If
+Else
+		Print "Please open ARMIS_Entry Table"
+End If
+
+Exit Sub
+UpdateTblError:
+Print "Unsuccesful - incorrect entry! "+chr$(10)
+OnError GoTo 0
+Resume AfterUpdateTblError
+
+End Sub
+
+'Exit
+Sub exit_sub
+	End Program
+End Sub
+
+'About
+Sub about_sub
+Dim message As String
+
+	message="Native Title Update  1.1  "
+	message=message+Chr$(13)
+	message=message+"by Geospatial Technologies - JAW"
+	message=message+Chr$(13)
+	message=message+Chr$(13)
+	message=message+"Extend native title functionality."
+	message=message+Chr$(13)
+	Note message
+
+End Sub

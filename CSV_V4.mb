@@ -1,0 +1,514 @@
+'import csv from bryce's tripmeter
+Include "menu.def"
+Include "mapbasic.def"
+Include "icons.def"
+Declare Sub Main
+Declare Function removeStr(ByVal newString As String) As String 
+
+Sub Main
+Dim sCsv, sDir, sTab, sLine As String
+Dim nLeft, nRight, nCols,nAccuracy,i,k As Integer
+Dim sTimestamp, sRoadid, sCarriageway, sRoadname, sNotetype, sSubject, sNotetext, sSpinefiledate As String
+Dim fLat, fLong, fTdist As Float
+Dim bJump As Logical
+Dim sMultimedia01, sMultimedia02, sMultimedia03, sMultimedia04, sMultimedia05, sMultimedia06, sMultimedia07, sMultimedia08, sMultimedia09, sMultimedia10 As String
+Dim sMultimedia11, sMultimedia12, sMultimedia13, sMultimedia14, sMultimedia15, sMultimedia16, sMultimedia17, sMultimedia18, sMultimedia19, sMultimedia20 As String
+Dim oPoint As Object
+
+Print Chr$(12)
+Print "Tripmeter"
+
+'Close table tTab created from previous run
+For i = 1 to numtables() 
+	If Tableinfo(i,1)= "tTab" Then
+		Close Table tTab
+	End If
+Next
+
+sCsv = FileOpenDlg("", "", "TXT", "Open the CSV file from Tripmeter")
+If sCsv = "" Then
+	Print "operation cancelled"
+	Exit Sub
+End If
+sDir = PathToDirectory$(sCsv)
+sTab = sDir + PathToTableName$(sCsv) + ".TAB"
+'create table
+Create Table tTab (
+	TIMESTAMP Char(19),
+	LAT Float,
+	LONG Float,
+	ROADID Char(15),
+	CARRIAGEWAY Char(2),
+	ROADNAME Char(40),
+	TDIST Float,
+	NOTETYPE Char(9),
+	SUBJECT Char(254),
+	NOTETEXT Char(254),
+	MULTIMEDIA01 Char(254),
+	MULTIMEDIA02 Char(254),
+	MULTIMEDIA03 Char(254),
+	MULTIMEDIA04 Char(254),
+	MULTIMEDIA05 Char(254),
+	MULTIMEDIA06 Char(254),
+	MULTIMEDIA07 Char(254),
+	MULTIMEDIA08 Char(254),
+	MULTIMEDIA09 Char(254),
+	MULTIMEDIA10 Char(254),
+	MULTIMEDIA11 Char(254),
+	MULTIMEDIA12 Char(254),
+	MULTIMEDIA13 Char(254),
+	MULTIMEDIA14 Char(254),
+	MULTIMEDIA15 Char(254),
+	MULTIMEDIA16 Char(254),
+	MULTIMEDIA17 Char(254),
+	MULTIMEDIA18 Char(254),
+	MULTIMEDIA19 Char(254),
+	MULTIMEDIA20 Char(254),
+	SPINEFILEDATE Char(10),
+	ACCURACY integer)
+	File sTab
+Create Map
+	For tTab
+	CoordSys Earth Projection 1, 116
+'import data
+Open File sCsv
+	For Input
+	As #1
+'test if first line is column headers
+Line Input #1, sLine
+If Not(sLine = "TIMESTAMP,LAT,LON,ROADID,CARRIAGEWAY,ROADNAME,TDIST,NOTETYPE,SUBJECT,NOTETEXT,MULTIMEDIA,SPINEFILEDATE,ACCURACY") Then
+	Print "not a valid gpsdroidnote.txt file"
+	Exit Sub
+End If
+
+OnError GoTo lineError
+k=0
+'process lines
+Line Input #1, sLine
+Do
+k=k+1
+sLine=removeStr(sLine) 'Remove all " characters before processing
+ 
+	If sLine <> "" Then
+		'grab the time stamp
+		nRight = InStr(1, sLine, ",")
+		sTimestamp = Left$(sLine, nRight-1)
+		'grab the lat
+		nLeft = nRight
+		nRight = InStr(nLeft+1, sLine, ",")
+		fLat = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+		'grab the long
+		nLeft = nRight
+		nRight = InStr(nLeft+1, sLine, ",")
+		fLong = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+		'grab the roadid
+		nLeft = nRight
+		nRight = InStr(nLeft+1, sLine, ",")
+		sRoadid = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+		'grab the carriageway
+		nLeft = nRight
+		nRight = InStr(nLeft+1, sLine, ",")
+		sCarriageway = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+		'grab the roadname
+		nLeft = nRight
+		nRight = InStr(nLeft+1, sLine, ",")
+		sRoadname = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+		'grab the tdist
+		nLeft = nRight
+		nRight = InStr(nLeft+1, sLine, ",")
+		fTdist = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+		'grab the notetype
+		nLeft = nRight
+		nRight = InStr(nLeft+1, sLine, ",")
+		sNotetype = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+		'grab the subject
+		nLeft = nRight
+		nRight = InStr(nLeft+1, sLine, ",")
+		sSubject = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+		'grab the notetext
+		nLeft = nRight
+		nRight = InStr(nLeft+1, sLine, ",")
+		sNotetext = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+		'null the multimedia values
+		sMultimedia01 = ""
+		sMultimedia02 = ""
+		sMultimedia03 = ""
+		sMultimedia04 = ""
+		sMultimedia05 = ""
+		sMultimedia06 = ""
+		sMultimedia07 = ""
+		sMultimedia08 = ""
+		sMultimedia09 = ""
+		sMultimedia10 = ""
+		sMultimedia11 = ""
+		sMultimedia12 = ""
+		sMultimedia13 = ""
+		sMultimedia14 = ""
+		sMultimedia15 = ""
+		sMultimedia16 = ""
+		sMultimedia17 = ""
+		sMultimedia18 = ""
+		sMultimedia19 = ""
+		sMultimedia20 = ""
+		'grab the multimedia01
+		nLeft = nRight
+		nRight = InStr(nLeft+1, sLine, "|")		
+		If nRight = 0 Then
+			nRight = InStr(nLeft+1, sLine, ",")
+			sMultimedia01 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+		Else
+			sMultimedia01 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+			'grab the multimedia02
+			nLeft = nRight
+			nRight = InStr(nLeft+1, sLine, "|")
+			If nRight = 0 Then
+				nRight = InStr(nLeft+1, sLine, ",")
+				sMultimedia02 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+			Else
+				sMultimedia02 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+				'grab the multimedia03
+				nLeft = nRight
+				nRight = InStr(nLeft+1, sLine, "|")
+				If nRight = 0 Then
+					nRight = InStr(nLeft+1, sLine, ",")
+					sMultimedia03 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+				Else
+					sMultimedia03 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+					'grab the multimedia04
+					nLeft = nRight
+					nRight = InStr(nLeft+1, sLine, "|")
+					If nRight = 0 Then
+						nRight = InStr(nLeft+1, sLine, ",")
+						sMultimedia04 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+					Else
+						sMultimedia04 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+						'grab the multimedia05
+						nLeft = nRight
+						nRight = InStr(nLeft+1, sLine, "|")
+						If nRight = 0 Then
+							nRight = InStr(nLeft+1, sLine, ",")
+							sMultimedia05 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+						Else
+							sMultimedia05 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+							'grab the multimedia06
+							nLeft = nRight
+							nRight = InStr(nLeft+1, sLine, "|")
+							If nRight = 0 Then
+								nRight = InStr(nLeft+1, sLine, ",")
+								sMultimedia06 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+							Else
+								sMultimedia06 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+								'grab the multimedia07
+								nLeft = nRight
+								nRight = InStr(nLeft+1, sLine, "|")
+								If nRight = 0 Then
+									nRight = InStr(nLeft+1, sLine, ",")
+									sMultimedia07 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+								Else
+									sMultimedia07 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+									'grab the multimedia08
+									nLeft = nRight
+									nRight = InStr(nLeft+1, sLine, "|")
+									If nRight = 0 Then
+										nRight = InStr(nLeft+1, sLine, ",")
+										sMultimedia08 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+									Else
+										sMultimedia08 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+										'grab the multimedia09
+										nLeft = nRight
+										nRight = InStr(nLeft+1, sLine, "|")
+										If nRight = 0 Then
+											nRight = InStr(nLeft+1, sLine, ",")
+											sMultimedia09 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+										Else
+											sMultimedia09 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+											'grab the multimedia10
+											nLeft = nRight
+											nRight = InStr(nLeft+1, sLine, "|")
+											If nRight = 0 Then
+												nRight = InStr(nLeft+1, sLine, ",")
+												sMultimedia10 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+											Else
+												sMultimedia10 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+												'grab the multimedia11
+												nLeft = nRight
+												nRight = InStr(nLeft+1, sLine, "|")
+												If nRight = 0 Then
+													nRight = InStr(nLeft+1, sLine, ",")
+													sMultimedia11 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+												Else
+													sMultimedia11 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+													'grab the multimedia12
+													nLeft = nRight
+													nRight = InStr(nLeft+1, sLine, "|")
+													If nRight = 0 Then
+														nRight = InStr(nLeft+1, sLine, ",")
+														sMultimedia12 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+													Else
+														sMultimedia12 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+														'grab the multimedia13
+														nLeft = nRight
+														nRight = InStr(nLeft+1, sLine, "|")
+														If nRight = 0 Then
+															nRight = InStr(nLeft+1, sLine, ",")
+															sMultimedia13 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+														Else
+															sMultimedia13 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+															'grab the multimedia14
+															nLeft = nRight
+															nRight = InStr(nLeft+1, sLine, "|")
+															If nRight = 0 Then
+																nRight = InStr(nLeft+1, sLine, ",")
+																sMultimedia14 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+															Else
+																sMultimedia14 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+																'grab the multimedia15
+																nLeft = nRight
+																nRight = InStr(nLeft+1, sLine, "|")
+																If nRight = 0 Then
+																	nRight = InStr(nLeft+1, sLine, ",")
+																	sMultimedia15 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+																Else
+																	sMultimedia15 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+																	'grab the multimedia16
+																	nLeft = nRight
+																	nRight = InStr(nLeft+1, sLine, "|")
+																	If nRight = 0 Then
+																		nRight = InStr(nLeft+1, sLine, ",")
+																		sMultimedia16 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+																	Else
+																		sMultimedia16 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+																		'grab the multimedia17
+																		nLeft = nRight
+																		nRight = InStr(nLeft+1, sLine, "|")
+																		If nRight = 0 Then
+																			nRight = InStr(nLeft+1, sLine, ",")
+																			sMultimedia17 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+																		Else
+																			sMultimedia17 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+																			'grab the multimedia18
+																			nLeft = nRight
+																			nRight = InStr(nLeft+1, sLine, "|")
+																			If nRight = 0 Then
+																				nRight = InStr(nLeft+1, sLine, ",")
+																				sMultimedia18 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+																			Else
+																				sMultimedia18 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+																				'grab the multimedia19
+																				nLeft = nRight
+																				nRight = InStr(nLeft+1, sLine, "|")
+																				If nRight = 0 Then
+																					nRight = InStr(nLeft+1, sLine, ",")
+																					sMultimedia19 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+																				Else
+																					sMultimedia19 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+																					'grab the multimedia20
+																					nLeft = nRight
+																					nRight = InStr(nLeft+1, sLine, ",")
+																					sMultimedia20 = Mid$(sLine, nLeft+1, nRight-nLeft-1)
+																				End If
+																			End If
+																		End If
+																	End If
+																End If
+															End If
+														End If
+													End If
+												End If
+											End If
+										End If
+									End If
+								End If
+							End If
+						End If
+					End If
+				End If
+			End If
+		End If
+		
+		'grab the spinefiledate
+		nLeft = nRight
+		nRight = InStr(nLeft+1, sLine, ",")
+		sSpinefiledate = Mid$(sLine, nLeft+1, nRight-nLeft-1)	
+				
+		'grab the accuracy
+		nLeft = nRight	
+		nAccuracy = Right$(sLine, Len(sLine)-nLeft)	
+			
+		'create point
+		oPoint = CreatePoint(fLong, fLat)
+		'Insert data
+		Insert Into tTab (Obj, TIMESTAMP, LAT, LONG, ROADID, CARRIAGEWAY, ROADNAME, TDIST, NOTETYPE, SUBJECT, NOTETEXT, MULTIMEDIA01, MULTIMEDIA02, MULTIMEDIA03, MULTIMEDIA04, MULTIMEDIA05, MULTIMEDIA06, MULTIMEDIA07, MULTIMEDIA08, MULTIMEDIA09, MULTIMEDIA10, MULTIMEDIA11, MULTIMEDIA12, MULTIMEDIA13, MULTIMEDIA14, MULTIMEDIA15, MULTIMEDIA16, MULTIMEDIA17, MULTIMEDIA18, MULTIMEDIA19, MULTIMEDIA20, SPINEFILEDATE,ACCURACY)
+			Values (oPoint, sTimestamp, fLat, fLong, sRoadid, sCarriageway, sRoadname, fTdist, sNotetype, sSubject, sNotetext, sMultimedia01, sMultimedia02, sMultimedia03, sMultimedia04, sMultimedia05, sMultimedia06, sMultimedia07, sMultimedia08, sMultimedia09, sMultimedia10, sMultimedia11, sMultimedia12, sMultimedia13, sMultimedia14, sMultimedia15, sMultimedia16, sMultimedia17, sMultimedia18, sMultimedia19, sMultimedia20, sSpinefiledate,nAccuracy)
+	End If
+	afterError:
+	OnError GoTo lineError
+	Line Input #1, sLine
+	
+Loop Until EOF(1)
+Commit Table tTab
+
+
+'generate hotlinks in table metadata
+Metadata Table tTab SetKey "\ActiveObject" To ""
+Metadata Table tTab SetKey "\ActiveObject\Expr" To "MULTIMEDIA01"
+Metadata Table tTab SetKey "\ActiveObject\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject1" To ""
+Metadata Table tTab SetKey "\ActiveObject1\Expr" To "MULTIMEDIA02"
+Metadata Table tTab SetKey "\ActiveObject1\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject1\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject1\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject1\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject2" To ""
+Metadata Table tTab SetKey "\ActiveObject2\Expr" To "MULTIMEDIA03"
+Metadata Table tTab SetKey "\ActiveObject2\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject2\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject2\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject2\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject3" To ""
+Metadata Table tTab SetKey "\ActiveObject3\Expr" To "MULTIMEDIA04"
+Metadata Table tTab SetKey "\ActiveObject3\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject3\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject3\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject3\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject4" To ""
+Metadata Table tTab SetKey "\ActiveObject4\Expr" To "MULTIMEDIA05"
+Metadata Table tTab SetKey "\ActiveObject4\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject4\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject4\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject4\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject5" To ""
+Metadata Table tTab SetKey "\ActiveObject5\Expr" To "MULTIMEDIA06"
+Metadata Table tTab SetKey "\ActiveObject5\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject5\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject5\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject5\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject6" To ""
+Metadata Table tTab SetKey "\ActiveObject6\Expr" To "MULTIMEDIA07"
+Metadata Table tTab SetKey "\ActiveObject6\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject6\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject6\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject6\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject7" To ""
+Metadata Table tTab SetKey "\ActiveObject7\Expr" To "MULTIMEDIA08"
+Metadata Table tTab SetKey "\ActiveObject7\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject7\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject7\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject7\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject8" To ""
+Metadata Table tTab SetKey "\ActiveObject8\Expr" To "MULTIMEDIA09"
+Metadata Table tTab SetKey "\ActiveObject8\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject8\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject8\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject8\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject9" To ""
+Metadata Table tTab SetKey "\ActiveObject9\Expr" To "MULTIMEDIA10"
+Metadata Table tTab SetKey "\ActiveObject9\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject9\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject9\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject9\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject10" To ""
+Metadata Table tTab SetKey "\ActiveObject10\Expr" To "MULTIMEDIA11"
+Metadata Table tTab SetKey "\ActiveObject10\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject10\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject10\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject10\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject11" To ""
+Metadata Table tTab SetKey "\ActiveObject11\Expr" To "MULTIMEDIA12"
+Metadata Table tTab SetKey "\ActiveObject11\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject11\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject11\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject11\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject12" To ""
+Metadata Table tTab SetKey "\ActiveObject12\Expr" To "MULTIMEDIA13"
+Metadata Table tTab SetKey "\ActiveObject12\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject12\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject12\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject12\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject13" To ""
+Metadata Table tTab SetKey "\ActiveObject13\Expr" To "MULTIMEDIA14"
+Metadata Table tTab SetKey "\ActiveObject13\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject13\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject13\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject13\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject14" To ""
+Metadata Table tTab SetKey "\ActiveObject14\Expr" To "MULTIMEDIA15"
+Metadata Table tTab SetKey "\ActiveObject14\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject14\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject14\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject14\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject15" To ""
+Metadata Table tTab SetKey "\ActiveObject15\Expr" To "MULTIMEDIA16"
+Metadata Table tTab SetKey "\ActiveObject15\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject15\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject15\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject15\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject16" To ""
+Metadata Table tTab SetKey "\ActiveObject16\Expr" To "MULTIMEDIA17"
+Metadata Table tTab SetKey "\ActiveObject16\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject16\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject16\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject16\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject17" To ""
+Metadata Table tTab SetKey "\ActiveObject17\Expr" To "MULTIMEDIA18"
+Metadata Table tTab SetKey "\ActiveObject17\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject17\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject17\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject17\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject18" To ""
+Metadata Table tTab SetKey "\ActiveObject18\Expr" To "MULTIMEDIA19"
+Metadata Table tTab SetKey "\ActiveObject18\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject18\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject18\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject18\Alias" To ""
+Metadata Table tTab SetKey "\ActiveObject19" To ""
+Metadata Table tTab SetKey "\ActiveObject19\Expr" To "MULTIMEDIA20"
+Metadata Table tTab SetKey "\ActiveObject19\Mode" To "HOTLINK_MODE_BOTH"
+Metadata Table tTab SetKey "\ActiveObject19\Relative" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject19\Enabled" To "TRUE"
+Metadata Table tTab SetKey "\ActiveObject19\Alias" To ""
+
+'Close created table for metadata to take affect
+Close Table tTab
+Open Table sDir + PathToTableName$(sCsv) + ".TAB" as tTab
+
+'Add created layer to first mapper
+For i = 1 To NumWindows()
+  If WindowInfo(i, WIN_INFO_TYPE) = 1 Then
+	Add Map Window windowID(i) Layer tTab
+  End if
+Next
+
+'Browse results
+Browse * From tTab
+Print "Completed Succesfully"
+
+Exit Sub
+lineError:
+OnError GoTo 0
+Print "Error found within data on line: " + k
+resume afterError
+
+End Sub
+
+' Remove " in string 
+Function removeStr(ByVal newString As String) As String 
+	Dim posChar as Integer
+
+	posChar =InStr(1,newString,Chr$(34))
+	If posChar = 1 Then
+		newString=Right$(newString,len(newString)-1)
+	ElseIf posChar = len(newString) Then
+		newString=Left$(newString,len(newString)-1)
+	Else
+		newString=Left$(newString,posChar-1)& Right$(newString,len(newString)-posChar) 
+	End If
+		
+	If InStr(1,newString,Chr$(34)) > 1 Then ' Recursion
+		newString = removeStr(newString)
+	End If
+	removeStr=newString 
+End Function

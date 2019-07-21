@@ -1,0 +1,186 @@
+' Programmer: John Worall
+' Date:             09/01/2012
+' Description:     Reads txt label GRID Files from ALS and creates box boundaries	
+'		    		  Assumes Txt file is top left corner of Box
+' Bugs/Updates Required: 
+' > Field Entry for Attributes entry
+' > Prompt User for Projection/Zone settings
+' > Prompt User for Perimetre of Grid 
+
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+
+Declare Sub Main
+
+Sub Main
+
+Open File FileOpenDlg("C:\", "", "*.*", "open txt file") For Input As 1
+
+Dim ln As String
+Dim rct As Object
+Dim TableName As String
+
+'Set CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000	'Zone 56
+Set CoordSys Earth Projection 8, 116, "m", 147, 0, 0.9996, 500000, 10000000		'Zone 55
+
+Dim SubGroup,Hotlinktotile,Supp,DateFlown,DateAcquired,PixelSize,Acc As String
+
+
+'Initilise Variables Here
+TableName = "Cairns_tile_index"
+SubGroup= " "
+Hotlinktotile=""
+Supp="Terranean"
+DateFlown= "Sept 2011"
+DateAcquired= "March 2012"
+PixelSize= "N/A"
+Acc = "+/- 150"
+
+
+
+Create Table TableName 
+	(Tile_ID Char(20),
+	Sub_Group Char(50),
+	Hotlink_to_tile Char(100),
+	Supplier Char(50),
+	Date_Flown Char(20),
+	Date_Acquired Char(20),
+	Pixel_size Char(10),
+	Accuracy Char(10)
+	)
+
+Create Map For TableName
+Map From TableName 
+'Set Map CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000  ' Zone 56	
+Set Map CoordSys Earth Projection 8, 116, "m", 147, 0, 0.9996, 500000, 10000000		' Zone 55
+Set Map XY Units "m"
+
+'Reads text file in formatt EEEEEE_NNNNNNN(e.g 358000_8032000), Top Left corner and create a 2km box						
+Do While Not EOF(1)
+	Line Input #1, ln
+	Create Region Into Variable rct 
+		1
+		4
+		(Int(Left$(ln, 6)), Int(Right$(ln, 7))) 
+		(Int(Left$(ln, 6)) + 1000, Int(Right$(ln, 7)))
+		(Int(Left$(ln, 6)) + 1000, Int(Right$(ln, 7)) - 1000)
+		(Int(Left$(ln, 6)), Int(Right$(ln, 7)) -1000)
+		Pen MakePen(1, 2, BLACK)
+		
+		Hotlinktotile="3_Contours\"+(Left$(ln, 6) + "_" + Right$(ln, 7) + "_1k_cont.tab")
+
+	Insert Into TableName 
+		(Tile_ID,Sub_Group,Hotlink_to_tile,Supplier,Date_Flown,Date_Acquired,Pixel_size,Accuracy, Obj) 
+		Values ( (Left$(ln, 6) + "_" + Right$(ln, 7) + "_1k"),SubGroup,Hotlinktotile,Supp,DateFlown,DateAcquired,PixelSize,Acc , rct )
+
+		Print Int(Left$(ln, 6)) + "  ,  " + Int(Right$(ln, 7))
+Loop
+
+'Set Map and Zoom
+Dim UsrWindId,LastE,LastN As Integer
+UsrWindId = FrontWindow() ' Sets Window ID for the active window
+LastE =(TableInfo(TableName,TAB_INFO_MAXX)+TableInfo(TableName,TAB_INFO_MINX))/2
+LastN =(TableInfo(TableName,TAB_INFO_MAXY)+TableInfo(TableName,TAB_INFO_MINY))/2
+
+Set Map
+Window UsrWindId 
+Center (LastE,LastN)'Smart Redraw
+Zoom Entire Layer TableName
+set map redraw on
+
+
+Commit Table TableName
+Close File 1
+
+
+Exit Sub ' Future works add Dialog below
+
+
+
+Dim sTables() As String
+Dim in_file, in_dir, in_name, in_datum, out_file, out_dir, hotlink_name, hotlink_dir As String
+Dim raster_total, raster_now As Integer
+Dim tile As Object
+Dim x_min, x_max, y_min, y_max As Float
+Dim relative_log As Logical
+Dim SubGroupTxt,SupplierTxt,DateFlownTxt,DateAcquiredTxt,PixelSizeTxt,GroundAccuracyTxt As String
+
+
+Dialog
+Title "Orthophoto Metadata"
+
+Control StaticText
+	Title "Sub Group:"
+	Position 20,17
+
+Control EditText
+	Value "N/A"
+	Position 20,27
+	Into SubGroupTxt
+
+Control StaticText
+	Title "Supplier:"
+	Position 120,17
+
+Control EditText
+	Value "VEKTA Pty Ltd"
+	Position 120,27
+	Into SupplierTxt
+
+Control StaticText
+	Title "Date Flown:"
+	Position 20,47
+
+Control EditText
+	Value "Sept 2011"
+	Position 20,57
+	Into DateFlownTxt
+
+Control StaticText
+	Title "Date Acquired:"
+	Position 120,47
+
+Control EditText
+	Value "March 2012"
+	Position 120,57
+	Into DateAcquiredTxt
+
+Control StaticText
+	Title "Pixel Size:"
+	Position 20,77
+
+Control EditText
+	Value "15cm"
+	Position 20,87
+	Into PixelSizeTxt
+
+Control StaticText
+	Title "Ground Accuracy:"
+	Position 120,77
+
+Control EditText
+	Value "0.5m"
+	Position 120,87
+	Into GroundAccuracyTxt
+
+Control GroupBox
+	Title "DTMR Metadata Entry:"
+	Position 2, 4 Width 210 Height 105
+
+Control OKButton
+	Position 180,120
+Control CancelButton
+	Position 130,120
+
+
+
+
+'Insert Into TableName (Object, Tile_ID,Sub_Group, Hotlink_to_image, Supplier, Date_Flown, Date_Acquired, Pixel_size, Ground_Accuracy)
+'		Values (tile, in_name, SubGroupTxt, hotlink_name,SupplierTxt,DateFlownTxt,DateAcquiredTxt,PixelSizeTxt,GroundAccuracyTxt)
+
+
+
+End Sub

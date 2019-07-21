@@ -1,0 +1,101 @@
+' Programmer: John Worall
+' Date:             09/01/2012
+' Description:     Reads txt label GRID Files from ALS filenames and creates box boundaries	
+'		    		  Assumes Txt file is top left corner of Box
+' Bugs/Updates Required: 
+' > Field Entry for Attributes entry
+' > Prompt User for Projection/Zone settings
+' > Prompt User for Perimetre of Grid 
+
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+Include "menu.def"
+Include "icons.def"
+'*************************************************************
+Declare Sub Main
+Declare Sub GetFileNames (byval sPath As String, byval sFilespec As String, sList() As String, out_dir As String)
+
+Define MAX_PATH 260
+
+Type FILETIME
+	dwLowDateTime As Integer
+	dwHighDateTime As Integer
+End Type
+
+Type WIN32_FIND_DATA
+	dwFileAttributes As Integer
+	ftCreationTime As FILETIME
+	ftLastAccessTime As FILETIME
+	ftLastWriteTime As FILETIME
+	nFileSizeHigh As Integer
+	nFileSizeLow As Integer
+	dwReserved0 As Integer
+	dwReserved1 As Integer
+	cFileName As String * MAX_PATH
+	cAlternate As String * 14
+End Type
+
+Define INVALID_HANDLE_VALUE -1
+Declare Function FindFirstFile Lib "kernel32"
+	Alias "FindFirstFileA" (ByVal lpFileName As String, lpfindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindNextFile Lib "kernel32"
+	Alias "FindNextFileA" (ByVal hFindFile As Integer, lpFindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindClose Lib "kernel32"
+	Alias "FindClose" (ByVal hFindFile As Integer) As Integer
+
+
+Sub Main
+
+print Chr$(12)
+
+Dim sTables() As String
+Dim in_file, in_dir,out_file,out_dir As String
+
+
+in_file = FileOpenDlg("", "", "TAB", "Open any tab files to index")
+	If in_file = "" Then
+		Exit Sub
+	End If
+in_dir = PathToDirectory$(in_file)
+
+call GetFileNames(in_dir, "*.TAB", sTables, out_dir)
+
+End Sub
+
+
+
+Sub GetFileNames (ByVal sPath As String, ByVal sFilespec As String, sList() As String, out_dir As String)
+Dim hFindFile, nStatus As Integer
+Dim f As WIN32_FIND_DATA
+Dim i As Integer
+
+hFindFile = FindFirstFile (sPath + sFilespec, f)
+If hFindFile <> INVALID_HANDLE_VALUE Then
+	Do
+		If (f.dwFileAttributes \ 16) Mod 2 = 0 Then
+			i = i + 1
+			ReDim sList(i)
+			sList(i) = f.cFilename
+				
+				'Index all tables
+				Open Table sPath+sList(i) as Table2Index
+				Create Index on Table2Index(col1)
+				Commit Table Table2Index
+				Close all
+				
+			print sList(i)
+		End If
+		nStatus = FindNextFile (hFindFile, f)
+	Loop While nStatus = 1
+End If
+nStatus = FindClose (hFindFile)
+End Sub
+
+
+
+
+
+
+

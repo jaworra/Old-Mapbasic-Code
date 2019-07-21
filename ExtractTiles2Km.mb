@@ -1,0 +1,21 @@
+' Programmer: John Worall
+' Date:             09/01/2012
+' Description:     Server Information
+'		    		 
+' Bugs/Updates Required: 
+' > 
+
+
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+
+Declare Sub Main
+
+Sub Main
+	Print Server_DriverInfo(1,SRV_DRV_INFO_NAME)
+
+
+End Sub

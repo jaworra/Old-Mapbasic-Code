@@ -1,0 +1,120 @@
+' Data Quality Assurance and Control 
+' Programmer:	  John Worall
+' Date:           17/07/2013
+' Description:    Checks data and reports. 
+' To Add:
+' Requirments : Input Tab file
+' Possible Future Works : Check spatial accuracies 
+'						  Find duplicate polygons,polylines,points						 
+'Library
+'*********************************************************************************************
+Include "mapbasic.def"
+Declare Sub Main
+	
+Sub Main
+Dim QATableRef,ColType,ReportTbl As String
+Dim NumCol,NumRows,ColTypeCode,NumUniqueTup  As Integer
+
+print chr$(12)
+Close all
+QATableRef = FileOpenDlg("C:\Documents and Settings\jaworra\Desktop\QVAS", "", "TAB", "Select Dataset to QA/QC")
+If QATableRef = "" Then
+	Print "operation cancelled"
+	Exit Sub
+End If
+Open Table QATableRef As QATable
+'Select Output Report
+ReportTbl = FileSaveAsDlg(PathToDirectory$(QATableRef),"QAQC_"+Left$(PathToFileName$(QATableRef),len(PathToFileName$(QATableRef))-4)+".rpt","TXT", " Select Report file")
+If ReportTbl= "" Then
+	Print "operation cancelled"
+	Exit Sub
+End If
+
+NumCol = TableInfo(QATable,TAB_INFO_NCOLS)
+NumRows = TableInfo(QATable, TAB_INFO_NROWS) 
+
+'Output report of table.
+Open File ReportTbl
+For Output As #1
+Print #1, "==========================================="
+Print #1, "Statistics"
+Print #1, "==========================================="
+Print #1, "Table: " + PathToFileName$(QATableRef)
+'Print #1, "Object Count: " + 
+Print #1, "Row Count: " + NumRows
+Print #1, "Column Count: " + NumCol
+Print #1, "Cordinate System: " + TableInfo(QATable,TAB_INFO_COORDSYS_CLAUSE)
+Print #1, "Min X:" +TableInfo(QATable,TAB_INFO_MINX)+"  Min Y:" +TableInfo(QATable,TAB_INFO_MINY)
+Print #1, "Max X:" +TableInfo(QATable,TAB_INFO_MAXX)+"  Max Y:" +TableInfo(QATable,TAB_INFO_MAXY)
+Print #1, ""
+Print #1, "==========================================="
+Print #1, "Table Structure"
+Print #1, "==========================================="
+Print #1, "Column Name,Type,Unique Value"
+
+'cordsys - projectionons
+'Topological  - Overlaping polygons - crossing strings. 
+Print "Table: "+ PathToFileName$(QATableRef)
+Print "Number of Columns: "+ NumCol
+Print "Number of Rows: "+ NumRows
+Print ""
+Print "Table Structure"
+Print "============================="
+Dim i As Integer
+For i = 1 to NumCol
+'----For Loop Here
+'Table structure
+'Column Name, Column Type, Count, 
+ColTypeCode = ColumnInfo(QATable,"COL"+i,COL_INFO_TYPE)
+Do Case ColTypeCode
+	Case 1
+		ColType = "Char("+ColumnInfo(QATable,"COL"+i,COL_INFO_WIDTH)+")"
+	Case 2
+		ColType = "Decimal("+ColumnInfo(QATable,"COL"+i,COL_INFO_WIDTH)+","+ColumnInfo(QATable,"COL"+i,COL_INFO_DECPLACES)+")"
+	Case 3
+		ColType = "Integer"
+	Case 4
+		ColType = "Small Integer"
+	Case 5
+		ColType = "Date"
+	Case 6
+		ColType = "Character"
+	Case 7
+		ColType = "Graphic"
+	Case 8
+		ColType = "Float"
+	Case 37
+		ColType = "Time"
+	Case 38
+		ColType = "Date Time"
+End Case
+
+Run Command "Select COL"+i+" from QATable group by COL"+i+" into NumberOfUnqiueValues"
+NumUniqueTup =TableInfo("NumberOfUnqiueValues",TAB_INFO_NROWS) 
+Close Table NumberOfUnqiueValues
+
+'Instead of print statement here - turn to array
+Print ColumnInfo(QATable,"COL"+i,COL_INFO_NAME)+",   "+ColType+",   "+NumUniqueTup
+Print #1, ColumnInfo(QATable,"COL"+i,COL_INFO_NAME)+","+ColType+","+NumUniqueTup
+
+Next
+'Flags here
+
+
+
+End Sub
+
+'Colum Type Definition
+'Define COL_TYPE_CHAR                            1
+'Define COL_TYPE_DECIMAL                         2
+'Define COL_TYPE_INTEGER                         3
+'Define COL_TYPE_SMALLINT                        4
+'Define COL_TYPE_DATE                            5
+'Define COL_TYPE_LOGICAL                         6
+'Define COL_TYPE_GRAPHIC                         7
+'Define COL_TYPE_FLOAT                           8
+'Define COL_TYPE_TIME                            37
+'Define COL_TYPE_DATETIME                        38
+' data type flag - only characters
+'Check for duplicates - By looping through all objects within the table and compare against nodes
+ 

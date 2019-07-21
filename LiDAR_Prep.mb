@@ -1,0 +1,627 @@
+' Converts ALS Files and directory from deilvered derm to DTMR standards
+' Programmer:	  John Worall
+' Date:           12/09/2013
+' Description:    Creates a Tab file from directory of shapefiles.
+' To Add:
+' Requirments : Directory containing Shapefiles
+'				Projection set from .prj file (Only does MGAZone56,55,54)	
+'				Set variable of directory to search (parDir & hotlinkDir)
+'			'Set Metadata based on directory name	
+
+'Library
+'*********************************************************************************************
+Include "mapbasic.def"
+Include "icons.def"
+Include "Menu.def"
+Declare Sub Main
+Declare Sub GetFileNames(byval sPath As String, byval sFilespec As String, sList() As String)
+Declare Sub ShpToTabMapInfo(Byval sShapePath As String)
+Declare Sub CreateTileContours(Byval sContourDir As String, Byval hotlinkSuffix As String, Byval hotlinkDir As String)
+Declare Sub UpdateExtents(Byval sContourDir As String, Byval hotlinkDir As String,Byval hotlinkSuffix As String,Byval saveFile As String)
+Declare Sub ReportLoop(Byval parDir As String, Byval hotlinkDir As String, Byval outFile As String, Byval findFile As String, Byval waitFile As String, Byval keyString As String, Byval hotlinkSuffix As String, Byval saveFile As String, Byval callSub As Integer)
+
+
+Type STARTUPINFO
+      cb As Integer
+      lpReserved As String
+      lpDesktop As String
+      lpTitle As String
+      dwX As Integer
+      dwY As Integer
+      dwXSize As Integer
+      dwYSize As Integer
+      dwXCountChars As Integer
+      dwYCountChars As Integer
+      dwFillAttribute As Integer
+      dwFlags As Integer
+      wShowWindow As Smallint
+      cbReserved2 As Smallint
+      lpReserved2 As Integer
+      hStdInput As Integer
+      hStdOutput As Integer
+      hStdError As Integer
+End Type
+
+Type PROCESS_INFORMATION
+    hProcess As Integer
+    hThread As Integer
+    dwProcessID As Integer
+    dwThreadID As Integer
+End Type
+Define NORMAL_PRIORITY_CLASS  &H20
+Define INFINITE -1
+Define MAX_PATH 260
+
+Type FILETIME
+	dwLowDateTime As Integer
+	dwHighDateTime As Integer
+End Type
+Type WIN32_FIND_DATA
+	dwFileAttributes As Integer
+	ftCreationTime As FILETIME
+	ftLastAccessTime As FILETIME
+	ftLastWriteTime As FILETIME
+	nFileSizeHigh As Integer
+	nFileSizeLow As Integer
+	dwReserved0 As Integer
+	dwReserved1 As Integer
+	cFileName As String * MAX_PATH
+	cAlternate As String * 14
+End Type
+Define INVALID_HANDLE_VALUE -1
+Declare Function FindFirstFile Lib "kernel32"
+	Alias "FindFirstFileA" (ByVal lpFileName As String, lpfindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindNextFile Lib "kernel32"
+	Alias "FindNextFileA" (ByVal hFindFile As Integer, lpFindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindClose Lib "kernel32"
+	Alias "FindClose" (ByVal hFindFile As Integer) As Integer
+Declare Function CloseHandle Lib "kernel32" (hObject As Integer) As smallint
+Declare Function WaitForSingleObject Lib "kernel32" (ByVal hHandle As Integer, 
+													 ByVal dwMilliseconds As Integer) 
+													 As Integer										 
+Declare Function CreateProcessA Lib "kernel32" (ByVal lpApplicationName As Integer, 
+												ByVal lpCommandLine As String, 
+												ByVal lpProcessAttributes As Integer, 
+												ByVal lpThreadAttributes As Integer, 
+												ByVal bInheritHandles As Integer, 
+												ByVal dwCreationFlags As Integer, 
+												ByVal lpEnvironment As Integer, 
+												ByVal lpCurrentDirectory As Integer, 
+												lpStartupInfo As STARTUPINFO, 
+												lpProcessInformation As PROCESS_INFORMATION) 
+												As Integer	
+
+												
+Sub Main
+print chr$(12)
+Close all
+Dim findFile,parDir,outFile,waitFile,keyString,hotlinkDir,hotlinkSuffix,saveFile As String
+'Find *.shp files and convert to .tab
+parDir="E:\"  'THIS IS THE ONLY THING YOU NEED TO CHANGE!!!!!
+hotlinkDir="3_Contours" 'THIS IS THE ONLY THING YOU NEED TO CHANGE!!!!!
+
+
+outFile="Directory.txt"
+findFile=".shp"
+waitFile="wait.txt"
+keyString="Directory of "
+hotlinkSuffix="_tile_index"
+saveFile=""'Entire extents = no need to change this
+
+Goto runTileProc
+call ReportLoop(parDir,hotlinkDir,outFile,findFile,waitFile,keyString,hotlinkSuffix,saveFile,1) 'Find all shp files in parDir and change to tab
+call ReportLoop(parDir,hotlinkDir,outFile,findFile,waitFile,keyString,hotlinkSuffix,saveFile,2) 'Create hotlink from contour tab files 
+runTileProc:
+saveFile=FileSaveAsDlg("", "","tab", "Select where to save dialog") 
+If saveFile=""Then
+	Exit Sub
+End If
+call ReportLoop(parDir,hotlinkDir,outFile,findFile,waitFile,keyString,hotlinkSuffix,saveFile,3) 'Create extents of all contours
+End Sub
+
+
+Sub ReportLoop(Byval parDir As String, Byval hotlinkDir As String, Byval outFile As String, Byval findFile As String, Byval waitFile As String, Byval keyString As String, Byval hotlinkSuffix As String, Byval saveFile As String, Byval callSub As Integer)
+Dim ln,foundDir As String
+
+'Creates a text file with all files certain type and its path. Then parse directory as a string 
+Run Program "CMD.EXE /c dir /s /A-D "+parDir+"*"+findFile+" > "+parDir+"\"+outFile+" & echo > "+parDir+waitFile
+Do While Not FileExists(parDir+waitFile)
+Loop 
+Open File(parDir+outFile) For Input As 1 
+Kill parDir+waitFile
+Do While Not EOF(1)
+	Line Input #1, ln
+	If InStr(1,ln,keyString)>0 Then
+		foundDir=Mid$(ln,InStr(1,ln,":\")-1,Len(ln))
+		If InStr(1,foundDir,"\RECYCLER\")=0 Then 'Dont parse recycle bin directories
+			If callSub=1 Then
+				Call ShpToTabMapInfo(foundDir) 'Parse found directories to sub procedure create tabs from shp
+			ElseIf callSub=2 Then
+				Call CreateTileContours(foundDir,hotlinkSuffix,hotlinkDir)
+			ElseIf callSub=3 Then
+				If saveFile="" Then
+					saveFile=FileSaveAsDlg("", "","tab", "Select where to save dialog") 
+				End If
+				Call UpdateExtents(foundDir,hotlinkDir,hotlinkSuffix,saveFile)
+			Else
+				Exit Sub
+			End If
+		End If
+	End If
+Loop
+Close File 1
+Kill parDir+outFile
+Print chr$(10)+"succesfully completed conversion!"
+End Sub
+
+
+Sub UpdateExtents(Byval sContourDir As String,Byval hotlinkDir As String,Byval hotlinkSuffix As String,Byval saveFile As String)
+Close All
+Dim newPath,sTabFiles(),rowName As String
+Dim i As Integer
+Dim A as String
+
+If Instr(1,sContourDir,hotlinkDir)<>0 Then
+	newPath=Left$(sContourDir,Instr(1,sContourDir,hotlinkDir)-1)'E:\Balonne\Nidigully\3_Contours = E:\Balonne\Nidigully\
+	
+	Call GetFileNames(newPath,"*.tab",sTabFiles)
+	For i=1 to UBound(sTabFiles)
+		If Instr(1,sTabFiles(i),hotlinkSuffix)<>0 Then
+			Print sTabFiles(i)
+			rowName=Left$(sTabFiles(i),Instr(1,sTabFiles(i),hotlinkSuffix)-1)
+			If not fileExists(saveFile)Then
+
+				Create Table "TempTbl"
+					(Tile_ID Char(50),
+					Sub_Group Char(50),
+					Hotlink_to_tile Char(100),
+					Supplier Char(50),
+					Date_Flown Char(20),
+					Date_Acquired Char(20),
+					Pixel_size Char(10),
+					Accuracy Char(10)
+					)
+				Create Map For "TempTbl"
+				Map From "TempTbl"
+				Set Map XY Units "m"
+				
+				Open Table newPath+"\"+sTabFiles(i) as TempTbl2
+				Select * from TempTbl2 into DeleteMe
+				Create Object As union From DeleteMe Into Table "TempTbl"
+				Data col1=rowName,col2=col2,col3="",col4=col4,col5=col5,col6=col6,col7=col7,col8=col8
+				Commit Table "TempTbl" as SaveFile
+				
+			Else
+				Open Table saveFile As "TempTbl"
+				Open Table newPath+"\"+sTabFiles(i) as TempTbl2
+				Select * from TempTbl2 into DeleteMe
+				Create Object As union From DeleteMe Into Table "TempTbl"
+				Data col1=rowName,col2=col2,col3="",col4=col4,col5=col5,col6=col6,col7=col7,col8=col8
+				Commit Table "TempTbl" 			
+			End If
+		End If
+		Close All
+	Next
+End If
+End Sub
+
+
+
+Sub CreateTileContours(Byval sContourDir As String, Byval hotlinkSuffix as String, Byval hotlinkDir As String)
+'Set Variables
+Dim ShapeFile,sTabFiles(),ln2,ln3,projectionInfo,LogFile,tempStr As String
+Dim i,StartTimer,Zone  as Integer
+Dim StartTime As Time
+Dim StartDate As Date
+Dim StartDT As datetime
+Dim SubGroup,Hotlinktotile,Supp,DateFlown,DateAcquired,PixelSize,Acc,TableName,FTableName As String
+Dim rct As Object
+
+'Extracts the imidate parent directroy name of where contours are for filename
+'i.e E:\Balonne\Nidigully\3_Contours = Nidigully
+tempStr=sContourDir
+While Instr(1,tempStr,"\")<>0
+	tempStr=Right$(tempStr,len(tempStr)-Instr(1,tempStr,"\"))
+	If Instr(1,tempStr,"\")<>0 Then
+		TableName=left$(tempStr,Instr(1,tempStr,"\")-1) 
+	End If
+Wend
+
+'Set Metadata based on directory name
+If mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Balonne" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Banana" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Barcoo" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Bulloo" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Central Higlands" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Charters Towers" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Cloncurry" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Cook" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Etheridge" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Flinders" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Gladstone" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Goondiwindi" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Issac" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Longreach" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Mount Isa" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Murweh" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="North Burnett" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Rockhampton" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Somerset" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="South Burnett" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Southern Downs" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Tablelands" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Toowoomba" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Western Downs" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+ElseIf mid$(sContourDir,4,Instr(1,Right$(sContourDir,len(sContourDir)-4),"\"))="Woorabinda" Then
+	TableName=TableName+hotlinkSuffix
+	SubGroup=" "
+	Supp="AAM"
+	DateFlown="June-September 2012"
+	DateAcquired="Feburary 2013"
+	PixelSize="N/A"
+	Acc="+/- 150"
+Else
+	TableName="TestNotAsigned"
+	SubGroup=" "
+	Hotlinktotile=""
+	Supp=""
+	DateFlown=""
+	DateAcquired=""
+	PixelSize=""
+	Acc=""
+	Print "not Assign"
+End If
+'Remove " " and "-" and ","from filenames
+While Instr(1,TableName," ")<>0
+	TableName=Left$(TableName,Instr(1,TableName," ")-1)+"_"+ Right$(TableName,Len(TableName)-Instr(1,TableName," ")) 
+Wend
+While Instr(1,TableName,"-")<>0
+	TableName=Left$(TableName,Instr(1,TableName,"-")-1)+"_"+ Right$(TableName,Len(TableName)-Instr(1,TableName,"-")) 
+Wend
+While Instr(1,TableName,",")<>0
+	TableName=Left$(TableName,Instr(1,TableName,",")-1)+"_"+ Right$(TableName,Len(TableName)-Instr(1,TableName,",")) 
+Wend
+
+FTableName=TableName
+TableName=TableName+"_TEMP"
+
+Create Table TableName 
+	(Tile_ID Char(20),
+	Sub_Group Char(50),
+	Hotlink_to_tile Char(100),
+	Supplier Char(50),
+	Date_Flown Char(20),
+	Date_Acquired Char(20),
+	Pixel_size Char(10),
+	Accuracy Char(10)
+	)
+Create Map For TableName
+Map From TableName 
+Set Map XY Units "m"
+
+'Initialise Time
+StartTimer = Timer()
+StartTime = Time (24)
+StartDate = CurDate()
+StartDT = MakeDateTime(StartDate,StartTime)
+LogFile="C:\TEMP\QAQC_ShapeToTabByDirection.log"
+	'If fileExists(LogFile)then
+	'	Kill LogFilef
+	'End If
+OnError Goto UpdateTblError
+Open File LogFile For Append As #3
+Print #3, "-----  Processing Directory "+sContourDir+"  Shape To Tab ----- "
+Print #3, "## "+FormatDate$(GetDate(StartDate))+" "+FormatTime$(GetTime(StartTime), "hh:mm:ss.fff tt")
+Print #3, ""
+If sContourDir="" Then
+	Print "operation cancelled"
+End If
+sContourDir=sContourDir+"\"
+Call GetFileNames(sContourDir,"*.tab",sTabFiles)
+	For i=1 to UBound(sTabFiles)
+		'Print "Converting "+sTabFiles(i)+" to "+mid$(sTabFiles(i),1,Len(sTabFiles(i))-4)+".tab.."
+		Open File(sContourDir+mid$(sTabFiles(i),1,Len(sTabFiles(i))-4)+".prj") For Input As 2 'open prj for projection info
+		Do While Not EOF(2)
+			Line Input #2, ln2
+			If Not EOF(2) Then 
+				If i=1 Then 'Check first file to set projection for every other file
+					If InStr(1,ln2,"GDA_1994_MGA_Zone_56")>0 Then 'Zone 56
+						Zone=56
+						Set CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000	'Zone 56
+					ElseIf InStr(1,ln2,"GDA_1994_MGA_Zone_55")>0 Then 'Zone 55
+						Zone=55
+						Set CoordSys Earth Projection 8, 116, "m", 147, 0, 0.9996, 500000, 10000000	'Zone 55
+					ElseIf InStr(1,ln2,"GDA_1994_MGA_Zone_54")>0 Then 'Zone 54
+						Zone=54
+						Set CoordSys Earth Projection 8, 116, "m", 141, 0, 0.9996, 500000, 10000000	'Zone 55
+					End If		
+				End If
+			End If
+		Loop
+		Close file 2				
+		'grids and input data to table
+		ln3=mid$(sTabFiles(i),4,14)
+				Create Region Into Variable rct 
+					1
+					4
+					(Int(Left$(ln3, 6)), Int(Right$(ln3, 7))) 
+					(Int(Left$(ln3, 6)) + 1000, Int(Right$(ln3, 7)))
+					(Int(Left$(ln3, 6)) + 1000, Int(Right$(ln3, 7)) + 1000)
+					(Int(Left$(ln3, 6)), Int(Right$(ln3, 7)) + 1000)
+					Pen MakePen(1, 2, BLACK)
+					Hotlinktotile=hotlinkDir+"\"+mid$(sTabFiles(i),1,Len(sTabFiles(i))-4)+".tab"
+				Insert Into TableName 
+					(Tile_ID,Sub_Group,Hotlink_to_tile,Supplier,Date_Flown,Date_Acquired,Pixel_size,Accuracy, Obj) 
+					Values ( (Left$(ln3, 6) + "_" + Right$(ln3, 7) + "_1k"),SubGroup,Hotlinktotile,Supp,DateFlown,DateAcquired,PixelSize,Acc , rct )
+					'Print Int(Left$(ln3, 6)) + "," + Int(Right$(ln3, 7))	
+	Next
+Close file 3
+'Set Metadata
+Metadata Table TableName SetKey "\ActiveObject" To ""
+Metadata Table TableName SetKey "\ActiveObject\Expr" To "Hotlink_to_tile"
+Metadata Table TableName SetKey "\ActiveObject\Mode" To "HOTLINK_MODE_OBJ"
+Metadata Table TableName SetKey "\ActiveObject\Relative" To "TRUE"
+Metadata Table TableName SetKey "\ActiveObject\Enabled" To "TRUE"
+Metadata Table TableName SetKey "\ActiveObject\Alias" To ""
+
+'Commit table to the general location
+Commit Table TableName As Mid$(sContourDir,1,Instr(1,sContourDir,hotlinkDir)-1)+FTableName+".tab"
+Print "Successfully Created Hotlink Tile For "+FTableName+" !"
+Drop table TableName
+Exit Sub
+UpdateTblError:
+Print #3,"Runtime Error - Dir:"+sContourDir+" File:"+ln3
+Print "Runtime Error - Dir:"+sContourDir+" File:"+ln3
+OnError GoTo 0
+Close file 2
+Close file 3
+'=======================================================================================
+End Sub
+
+Sub ShpToTabMapInfo(Byval sShapePath As String)
+Dim sShapeFile,sShapeFiles(),ln2,projectionInfo,LogFile As String
+Dim i,StartTimer  as Integer
+Dim StartTime As Time
+Dim StartDate As Date
+Dim StartDT As datetime
+'Initialise Time
+StartTimer = Timer()
+StartTime = Time (24)
+StartDate = CurDate()
+StartDT = MakeDateTime(StartDate,StartTime)
+LogFile="C:\TEMP\QAQC_ShapeToTabByDirection.log"
+'If fileExists(LogFile)then
+'	Kill LogFile
+'End If
+OnError Goto UpdateTblError
+Open File LogFile For Append As #3
+Print #3, "-----  Processing Directory "+sShapePath+"  Shape To Tab ----- "
+Print #3, "## "+FormatDate$(GetDate(StartDate))+" "+FormatTime$(GetTime(StartTime), "hh:mm:ss.fff tt")
+Print #3, ""
+If sShapePath="" Then
+	Print "operation cancelled"
+End If
+sShapePath=sShapePath+"\"
+Call GetFileNames(sShapePath,"*.shp",sShapeFiles)
+	For i=1 to UBound(sShapeFiles)
+		Print "Converting "+sShapeFiles(i)+" to "+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4)+".tab.."
+		Open File(sShapePath+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4)+".prj") For Input As 2 'open prj for projection info
+		Do While Not EOF(2)
+			Line Input #2, ln2
+			If Not EOF(2) Then 
+				If InStr(1,ln2,"GDA_1994_MGA_Zone_56")>0 Then 'Zone 56
+					Register Table sShapePath+"\"+sShapeFiles(i) TYPE SHAPEFILE Charset "WindowsLatin1" CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000 PersistentCache Off linestyle Pen (1,2,0)  Into "C:\TEMP\"+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4)
+					Open Table "C:\TEMP\"+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4) As tempTbl
+					Commit Table tempTbl As sShapePath+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4)+".tab"
+					Close Table tempTbl
+				ElseIf InStr(1,ln2,"GDA_1994_MGA_Zone_55")>0 Then 'Zone 55
+					Register Table sShapePath+"\"+sShapeFiles(i) TYPE SHAPEFILE Charset "WindowsLatin1" CoordSys Earth Projection 8, 116, "m", 147, 0, 0.9996, 500000, 10000000 PersistentCache Off linestyle Pen (1,2,0)  Into "C:\TEMP\"+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4)
+					Open Table "C:\TEMP\"+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4) As tempTbl
+					Commit Table tempTbl As sShapePath+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4)+".tab"
+					Close Table tempTbl
+				ElseIf InStr(1,ln2,"GDA_1994_MGA_Zone_54")>0 Then 'Zone 54
+					Register Table sShapePath+"\"+sShapeFiles(i) TYPE SHAPEFILE Charset "WindowsLatin1" CoordSys Earth Projection 8, 116, "m", 141, 0, 0.9996, 500000, 10000000 PersistentCache Off linestyle Pen (1,2,0)  Into "C:\TEMP\"+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4)
+					Open Table "C:\TEMP\"+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4) As tempTbl
+					Commit Table tempTbl As sShapePath+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4)+".tab"
+					Close Table tempTbl
+				End If		
+			End If
+			Loop
+		Close file 2
+	Next
+Close file 3
+Exit Sub
+UpdateTblError:
+Print #3,"Runtime Error - Dir:"+sShapePath+" File:"+sShapeFiles(i)
+Print "Runtime Error - Dir:"+sShapePath+" File:"+sShapeFiles(i)
+OnError GoTo 0
+Close file 2
+Close file 3
+End Sub
+
+Sub GetFileNames (ByVal sPath As String, ByVal sFilespec As String, sList() As String)
+Dim hFindFile, nStatus As Integer
+Dim f As WIN32_FIND_DATA
+Dim i As Integer
+hFindFile = FindFirstFile (sPath + sFilespec, f)
+If hFindFile <> INVALID_HANDLE_VALUE Then
+	Do
+		If (f.dwFileAttributes \ 16) Mod 2 = 0 Then
+			i = i + 1
+			ReDim sList(i)
+			sList(i) = f.cFilename
+		End If
+		nStatus = FindNextFile (hFindFile, f)
+	Loop While nStatus = 1
+End If
+nStatus = FindClose (hFindFile)
+End Sub
+

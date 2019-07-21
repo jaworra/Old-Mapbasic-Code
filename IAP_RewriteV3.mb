@@ -1,0 +1,726 @@
+'===================================================================================================================='
+' Programmer:       John Worrall																									'
+' Last Update:      17/01/2021																										'
+'																																		'	
+' Description:    																													'
+'  - Heavy vehicle process																											'
+' Combine files by month	and add unique ID 																					'
+																																		'
+' Furture Works - Combined sub functions 																						'
+'               - Option for user entry or select of files to process												    	'
+' Bugs 		  - Investigate I/0 issue where space at end of file is being writtern out. 						    	'
+'				   - Requires	maunual entry for list filenames																	'
+'===================================================================================================================='
+'
+'                      .         .                           
+'8888888 8888888888   ,8.       ,8.          8 888888888o.   
+'      8 8888        ,888.     ,888.         8 8888    `88.  
+'      8 8888       .`8888.   .`8888.        8 8888     `88  
+'      8 8888      ,8.`8888. ,8.`8888.       8 8888     ,88  
+'      8 8888     ,8'8.`8888,8^8.`8888.      8 8888.   ,88'  
+'      8 8888    ,8' `8.`8888' `8.`8888.     8 888888888P'   
+'      8 8888   ,8'   `8.`88'   `8.`8888.    8 8888`8b       
+'      8 8888  ,8'     `8.`'     `8.`8888.   8 8888 `8b.     
+'      8 8888 ,8'       `8        `8.`8888.  8 8888   `8b.   
+'      8 8888,8'         `         `8.`8888. 8 8888     `88. 
+
+'                                                                                                                                                                                                                       
+'     ,o888888o.    8 8888888888       ,o888888o.       d888888o.   8 888888888o 8888888 8888888888   .8.           8 8888 8 8888                   8888888 8888888888 8 8888888888       ,o888888o.    8 8888        8 
+'    8888     `88.  8 8888          . 8888     `88.   .`8888:' `88. 8 8888    `88.     8 8888        .888.          8 8888 8 8888                         8 8888       8 8888            8888     `88.  8 8888        8 
+' ,8 8888       `8. 8 8888         ,8 8888       `8b  8.`8888.   Y8 8 8888     `88     8 8888       :88888.         8 8888 8 8888                         8 8888       8 8888         ,8 8888       `8. 8 8888        8 
+' 88 8888           8 8888         88 8888        `8b `8.`8888.     8 8888     ,88     8 8888      . `88888.        8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888        8 
+' 88 8888           8 888888888888 88 8888         88  `8.`8888.    8 8888.   ,88'     8 8888     .8. `88888.       8 8888 8 8888                         8 8888       8 888888888888 88 8888           8 8888        8 
+' 88 8888           8 8888         88 8888         88   `8.`8888.   8 888888888P'      8 8888    .8`8. `88888.      8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888        8 
+' 88 8888   8888888 8 8888         88 8888        ,8P    `8.`8888.  8 8888             8 8888   .8' `8. `88888.     8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888888888888 
+' `8 8888       .8' 8 8888         `8 8888       ,8P 8b   `8.`8888. 8 8888             8 8888  .8'   `8. `88888.    8 8888 8 8888                         8 8888       8 8888         `8 8888       .8' 8 8888        8 
+'    8888     ,88'  8 8888          ` 8888     ,88'  `8b.  ;8.`8888 8 8888             8 8888 .888888888. `88888.   8 8888 8 8888                         8 8888       8 8888            8888     ,88'  8 8888        8 
+'     `8888888P'    8 888888888888     `8888888P'     `Y8888P ,88P' 8 8888             8 8888.8'       `8. `88888.  8 8888 8 888888888888                 8 8888       8 888888888888     `8888888P'    8 8888        8 
+'
+'
+'================================================================================================================='
+
+'Library
+'*********************************************************************************************
+Include "mapbasic.def"
+Include "icons.def"
+Include "Menu.def" ' -> not needed?
+
+'*********************************************************************************************
+Declare Sub Main
+Declare Sub ReWriteIAP (ByVal AppFolder as String,ByVal FileName as String,ByVal CombinedFld as String,ByVal RevisedFld as String)
+Declare Sub GetFileNames (byval sPath As String, byval sFilespec As String, sList() As String)
+
+Define MAX_PATH 260
+Type FILETIME
+	dwLowDateTime As Integer
+	dwHighDateTime As Integer
+End Type
+Type WIN32_FIND_DATA
+	dwFileAttributes As Integer
+	ftCreationTime As FILETIME
+	ftLastAccessTime As FILETIME
+	ftLastWriteTime As FILETIME
+	nFileSizeHigh As Integer
+	nFileSizeLow As Integer
+	dwReserved0 As Integer
+	dwReserved1 As Integer
+	cFileName As String * MAX_PATH
+	cAlternate As String * 14
+End Type
+
+Define INVALID_HANDLE_VALUE -1
+Declare Function FindFirstFile Lib "kernel32"
+	Alias "FindFirstFileA" (ByVal lpFileName As String, lpfindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindNextFile Lib "kernel32"
+	Alias "FindNextFileA" (ByVal hFindFile As Integer, lpFindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindClose Lib "kernel32"
+	Alias "FindClose" (ByVal hFindFile As Integer) As Integer
+
+
+Declare Sub GetDirNames (byval sPath As String, byval sFilespec As String, sList() As String)
+
+
+'========================GET FILES SUB=========================================================================
+' Get File Names Here
+Sub GetFileNames (ByVal sPath As String, ByVal sFilespec As String, sList() As String)
+Dim hFindFile, nStatus As Integer
+Dim f As WIN32_FIND_DATA
+Dim i As Integer
+
+hFindFile = FindFirstFile (sPath + sFilespec, f)
+If hFindFile <> INVALID_HANDLE_VALUE Then
+	Do
+		If (f.dwFileAttributes \ 16) Mod 2 = 0 Then
+			i = i + 1
+			ReDim sList(i)
+			sList(i) = f.cFilename
+		End If
+		nStatus = FindNextFile (hFindFile, f)
+	Loop While nStatus = 1
+End If
+nStatus = FindClose (hFindFile)
+End Sub
+
+
+
+'========================GET DIR SUB=========================================================================
+' Get Folder Names Here
+Sub GetDirNames (ByVal sPath As String, ByVal sFilespec As String, sList() As String)
+Dim hFindFile, nStatus As Integer
+Dim f As WIN32_FIND_DATA
+Dim i As Integer
+
+hFindFile = FindFirstFile (sPath + sFilespec, f)
+If hFindFile <> INVALID_HANDLE_VALUE Then
+	Do
+		If (f.dwFileAttributes \ 16) Mod 2 = 1 Then
+			i = i + 1
+			ReDim sList(i)
+			sList(i) = f.cFilename
+		End If
+		nStatus = FindNextFile (hFindFile, f)
+	Loop While nStatus = 1
+End If
+nStatus = FindClose (hFindFile)
+End Sub
+
+
+Sub Main
+
+Print Chr$(12)
+Print "-------------------------------------------------------------------"
+Print "----------------------START----------------------------------------"
+Print "-------------------------------------------------------------------"
+
+'=================================================================================================
+' Output list of files to combine - run cmd prompt
+'------------------------------------------------------------------------------------------
+ 
+Dim UsersFilePath As String
+Dim PasteDirctFnl As String
+Dim CopyDirctOrgFnl As String
+Dim ln As String
+Dim AppFolder as String
+Dim RevisedFld as String
+Dim CombinedFld as String
+
+AppFolder = ApplicationDirectory$()
+Print AppFolder +"- Current Location  (Path)"
+
+RevisedFld = "Rev"
+CombinedFld = "Cmb"
+
+
+'''''''''''''''''''''''''''''''''''''''''GET Folder NAMES''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Dim in_file, in_dir, afile As String
+Dim list_now, list_total As Integer
+Dim sTables() As String
+
+Print "start - Folders"
+
+'Sets file directory to extract filenmaes
+'in_file = "C:\IAP\TEST\20010\20017\"
+
+'in_dir = PathToDirectory$(in_file)
+Call GetDirNames (AppFolder, "*.*", sTables)
+
+list_total = UBound(sTables)
+For list_now = 1 To list_total
+	afile = sTables(list_now)
+	Print afile
+Next
+
+Print list_now +"  this is the number of FOlders"
+
+If list_now = 3 Then
+Print "this is an empty folder"
+End If
+Print "finished"
+
+Print sTables(3) + "This is the lastest values"
+
+'''''''''''''''''''''''''''''''''''''''''END''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+' Create folder here -> DOES NOT LIKE DOCUMENT SETTTINGS *fix this
+Run Program "CMD.EXE /c mkdir "+ AppFolder +CombinedFld
+
+Dim lnK(30000) As String
+Dim lnL(30000) As String
+Dim SubStrPath As String
+Dim K as Integer
+Dim L as Integer
+Dim M as Integer
+Dim FinT as Integer
+Dim lengthStr3 As Integer
+
+M = 12 ' The maximum number of character in vehicleID
+
+k = 1
+L = 1
+For list_now = 3 To list_total
+'	Print sTables(list_now)+" "+list_now
+
+If (StringCompare(sTables(list_now),CombinedFld) <> 0)  Then  ' condition to ignore cmb folder
+If (StringCompare(sTables(list_now),RevisedFld) <> 0)  Then		' condition  to ignore rev folder
+Call ReWriteIAP (AppFolder,sTables(list_now),CombinedFld,RevisedFld)
+End IF
+End IF
+
+Next
+
+End Sub
+
+'================================================================================================
+'Sub Function Rewrite
+'================================================================================================
+Sub ReWriteIAP(ByVal AppFolder as String,ByVal FileName as String,ByVal CombinedFld as String,ByVal RevisedFld as String)
+
+Print "-------------------------------------------------Write Section"
+Print AppFolder
+Print FileName 
+Print CombinedFld
+Print RevisedFld
+
+
+Run Program "CMD.EXE /c mkdir "+ AppFolder + RevisedFld +"\"+FileName+"\data" +"&& echo done>"+AppFolder + RevisedFld +"\"+FileName+"\data\doneREV.d"
+
+'Waits until command has finished executing
+Do While Not FileExists(AppFolder + RevisedFld +"\"+FileName+"\data\doneREV.d")
+Loop 
+
+Dim SubAppFolder As String
+SubAppFolder = AppFolder+FileName+"\data\"
+
+'================================================================================================
+'User entry of Vehicle ID number
+Dim SubFold As String
+
+SubFold = FileName
+
+'=================================================================================================
+' Identifies heavy vehicle ID numbers
+'------------------------------------------------------------------------------------------
+
+Dim StrLen As SmallInt
+Dim StrAd As String
+Dim FSubFold As String
+
+'Set unique Vehicle ID
+StrLen = Len(SubFold) 	' Therefore this equals 9
+StrAd = "0"
+
+'StrLen = 11 - Len(SubFold)
+print StrLen
+
+'StrLength  = 1
+
+'While loop to assign unique id for vehicle
+While StrLen < 11
+SubFold =StrAd + SubFold
+StrLen =StrLen+1
+Wend
+
+Print SubFold+ " - Vehicle ID  (Variable)"
+
+
+'''''''''''''''''''''''''''''''''''''''''GET FILE NAMES SDM FILE''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Dim in_file, in_dir, afile As String
+Dim list_now, list_total As Integer
+Dim sTables() As String
+
+'Print Chr$(12)
+Print "start - Files"
+
+
+'Sets file directory to extract filenmaes
+in_file = AppFolder+FileName+"\data\"
+
+in_dir = PathToDirectory$(in_file)
+Call GetFileNames (in_dir, "*.sdm", sTables)
+
+
+list_total = UBound(sTables)
+
+For list_now = 1 To list_total
+	afile = sTables(list_now)
+	Print afile
+Next
+
+If list_now = 1 Then
+Print "this is an empty folder"
+End If
+
+'list starts one more than 0
+
+Print "finished"+ list_now
+
+'sdm list above 
+'''''''''''''''''''''''''''''''''''''''''END''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'=================================================================================================
+' Process existing file and recreate
+'------------------------------------------------------------------------------------------
+Print "-------------------------------------------------------------------"
+Print "---------------------------------------Rewrite .sdm file"
+Print "-------------------------------------------------------------------"
+
+
+Dim i As Integer
+Dim j As Integer
+i = 1
+j = 1
+Dim lnS(30000) As String
+Dim lnT(30000) As String
+Dim lengthStr,lengthStr2 As SmallInt
+
+For list_now = 1 To list_total
+Open File SubAppFolder+sTables(list_now) for Input as #4
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+sTables(list_now) for Output as #5 ' Got to create a folder call new here!!
+
+Line Input #4, lnT(j)		'* Delcarlaration outside and inside loop to avoid last line duplication
+
+Do While Not EOF(4)
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnT(j))
+If lengthStr > 11 Then  ' any more the unique Vehicle ID
+Print #5,SubFold+lnT(j)
+End If
+
+Line Input #4, lnT(j)		'*
+
+Loop
+Close File #4
+Close File #5
+j =1
+Next
+
+
+'''''''''''''''''''''''''''''''''''''''''GET FILE NAMES POS FILE''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Dim pTables() As String
+
+Print "start - Files"
+
+
+'Sets file directory to extract filenmaes
+in_file = AppFolder+FileName+"\data\"
+
+in_dir = PathToDirectory$(in_file)
+Call GetFileNames (in_dir, "*.pos", pTables)
+
+
+list_total = UBound(pTables)
+
+
+For list_now = 1 To list_total
+	afile = pTables(list_now)
+	Print afile
+Next
+
+If list_now = 1 Then
+Print "this is an empty folder"
+End If
+
+'list starts one more than 0
+
+Print "finished"+ list_now
+
+'sdm list above 
+
+'''''''''''''''''''''''''''''''''''''''''END''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+'=================================================================================================
+' Process existing file and recreate
+'------------------------------------------------------------------------------------------
+Print "-------------------------------------------------------------------"
+Print "---------------------------------------Rewrite .pos file"
+Print "-------------------------------------------------------------------"
+
+Dim lnP(30000) As String
+i = 1
+j = 1
+
+For list_now = 1 To list_total
+Open File SubAppFolder+pTables(list_now) for Input as #4
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+pTables(list_now) for Output as #5 ' Got to create a folder call new here!!
+
+Line Input #4, lnP(j) '* Delcarlaration outside and inside loop to avoid last line duplication
+
+Do While Not EOF(4)
+'Line Input #4, lnP(j)   
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnP(j))
+If lengthStr > 11 Then  ' any more the unique Vehicle ID
+Print #5,SubFold+lnP(j) 
+End If
+
+Line Input #4, lnP(j) '*
+
+Loop
+Close File #4
+Close File #5
+j =1
+Next
+
+
+'------------------------------------------------------------------------------------------
+'SubAppFolder = AppFolder+FileName+"\data\"
+
+'------------------------------------------------------------------------------------------
+
+Print "-----------------------------------------------------------------------------------------------------------------------------------"
+Print "---------------------------------------Combined Files of .pos"
+Print "-----------------------------------------------------------------------------------------------------------------------------------"
+
+
+'''''''''''''''''''''''''''''''''''''''''GET FILE NAMES Combined FILE''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Dim pCMBTables() As String
+
+Print CombinedFld
+
+'Sets file directory to extract filenmaes
+in_file = AppFolder+RevisedFld+"\"+FileName+"\data\"
+
+in_dir = PathToDirectory$(in_file)
+Call GetFileNames (in_dir, "*.pos", pCMBTables)
+
+
+list_total = UBound(pCMBTables)
+
+
+For list_now = 1 To list_total
+	afile = pCMBTables(list_now)
+	print afile
+Next
+
+If list_now = 1 Then
+Print "this is an empty folder"
+End If
+
+'list starts one more than 0
+Print "finished"+ list_now
+
+'sdm list above 
+
+
+'''''''''''''''''''''''''''''''''''''''''END''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+For list_now = 1 To list_total
+lengthStr2 = Len(pCMBTables(list_now))
+
+If lengthStr2 > 0 Then
+
+Dim lnN(30000) As String
+Dim lnO(30000) As String
+Dim lnF(30000) As String
+Dim lnV(30000) As String
+
+lnN(list_now) = Mid$(pCMBTables(list_now),1,6)
+lnO(list_now) = Mid$(pCMBTables(list_now),9,24)
+lnF(list_now)= lnN(list_now)+lnO(list_now)
+
+Print lnF(list_now) +"Combined"
+
+
+
+'------------------------------------------------------------------------------------------
+' File Exist  
+
+If FileExists (AppFolder+CombinedFld+"\"+lnF(list_now)) Then    ' If the Month file has already been created. 
+j=1
+
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+pCMBTables(list_now) for Input as #4   ' Read in rewrittern file
+Open File AppFolder + CombinedFld +"\"+lnF(list_now) for Append as #5
+Do While Not EOF(4)
+Line Input #4, lnV(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnV(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnV(j)
+j =j+1
+End If
+
+Loop
+Close File #4
+Close File #5
+
+'------------------------------------------------------------------------------------------
+' First Record Store  
+
+ElseIf list_now = 1 Then
+print AppFolder + RevisedFld +"\"+FileName+"\data\"+lnF(list_now)+ "  INPUT"
+print AppFolder + CombinedFld +"\"+lnF(list_now)+ "  OUTPUT"
+Print "-------------------------------------------------------------------------------------file exist"
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+pCMBTables(list_now) for Input as #4
+Open File AppFolder + CombinedFld +"\"+lnF(list_now) for Output as #5
+Do While Not EOF(4)
+Line Input #4, lnV(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnV(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnV(j)
+j =j+1
+End If
+
+Loop
+Close File #4
+Close File #5
+
+'------------------------------------------------------------------------------------------
+' Unique Record Store 
+ElseIf lnF(list_now) <> lnF(list_now-1) Then 
+
+j=1
+Print lnF(list_now)+"  This record needs to be combined"
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+pCMBTables(list_now) for Input as #4   ' Read in rewrittern file
+Open File AppFolder + CombinedFld +"\"+lnF(list_now) for Append as #5
+Do While Not EOF(4)
+Line Input #4, lnV(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnV(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnV(j)
+j =j+1
+End If
+
+Loop
+Close File #4
+Close File #5
+
+
+'------------------------------------------------------------------------------------------
+'Otherwise check for same month and append
+ElseIf lnF(list_now) = lnF(list_now-1) Then 
+
+j=1
+Print lnF(list_now)+"  This record needs to be combined"
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+pCMBTables(list_now) for Input as #4   ' Read in rewrittern file
+Open File AppFolder + CombinedFld +"\"+lnF(list_now) for Append as #5
+Do While Not EOF(4)
+Line Input #4, lnV(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnV(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnV(j)
+j =j+1
+End If
+
+Loop
+Close File #4
+Close File #5
+
+
+
+
+End If ' FileExist 
+End If ' Condition statement for string length
+
+Next
+
+
+
+
+
+
+'------------------------------------------------------------------------------------------
+
+Print "-----------------------------------------------------------------------------------------------------------------------------------"
+Print "---------------------------------------Combined Files of .sdm"
+Print "-----------------------------------------------------------------------------------------------------------------------------------"
+
+
+
+'''''''''''''''''''''''''''''''''''''''''GET FILE NAMES Combined FILE''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Dim sCMBTables() As String
+
+Print CombinedFld
+
+'Sets file directory to extract filenmaes
+in_file = AppFolder+RevisedFld+"\"+FileName+"\data\"
+
+in_dir = PathToDirectory$(in_file)
+Call GetFileNames (in_dir, "*.sdm", sCMBTables)
+
+
+list_total = UBound(sCMBTables)
+
+
+For list_now = 1 To list_total
+	afile = sCMBTables(list_now)
+	print afile
+Next
+
+If list_now = 1 Then
+Print "this is an empty folder"
+End If
+
+'list starts one more than 0
+Print "number of records "+ list_now
+
+'sdm list above 
+
+'''''''''''''''''''''''''''''''''''''''''END''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+For list_now = 1 To list_total
+lengthStr2 = Len(sCMBTables(list_now))
+
+If lengthStr2 > 0 Then
+
+Dim lnA(30000) As String
+Dim lnB(30000) As String
+Dim lnC(30000) As String
+Dim lnD(30000) As String
+
+lnA(list_now) = Mid$(sCMBTables(list_now),1,6)
+lnB(list_now) = Mid$(sCMBTables(list_now),9,24)
+lnC(list_now)= lnA(list_now)+lnB(list_now)
+
+Print lnC(list_now) +"Combined"
+
+
+'------------------------------------------------------------------------------------------
+' File Exist  
+
+If FileExists (AppFolder+CombinedFld+"\"+lnC(list_now)) Then    ' If the Month file has already been created. 
+j=1
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+sCMBTables(list_now) for Input as #4   ' Read in rewrittern file
+Open File AppFolder + CombinedFld +"\"+lnC(list_now) for Append as #5
+Do While Not EOF(4)
+Line Input #4, lnD(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnD(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnD(j)
+j =j+1
+End If
+
+Loop
+Close File #4
+Close File #5
+
+'------------------------------------------------------------------------------------------
+' First Record Store  
+
+ElseIf list_now = 1 Then
+print AppFolder + RevisedFld +"\"+FileName+"\data\"+lnC(list_now)+ "  INPUT"
+print AppFolder + CombinedFld +"\"+lnC(list_now)+ "  OUTPUT"
+Print "-------------------------------------------------------------------------------------file exist"
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+sCMBTables(list_now) for Input as #4
+Open File AppFolder + CombinedFld +"\"+lnC(list_now) for Output as #5
+Do While Not EOF(4)
+Line Input #4, lnD(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnD(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnD(j)
+j =j+1
+End If
+
+Loop
+Close File #4
+Close File #5
+
+'------------------------------------------------------------------------------------------
+' Unique Record Store 
+ElseIf lnC(list_now) <> lnC(list_now-1) Then 
+
+j=1
+Print lnC(list_now)+"  This record needs to be combined"
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+sCMBTables(list_now) for Input as #4   ' Read in rewrittern file
+Open File AppFolder + CombinedFld +"\"+lnC(list_now) for Append as #5
+Do While Not EOF(4)
+Line Input #4, lnD(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnD(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnD(j)
+j =j+1
+End If
+
+Loop
+Close File #4
+Close File #5
+
+
+'------------------------------------------------------------------------------------------
+'Otherwise check for same month and append
+ElseIf lnC(list_now) = lnC(list_now-1) Then 
+
+j=1
+Print lnC(list_now)+"  This record needs to be combined"
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+sCMBTables(list_now) for Input as #4   ' Read in rewrittern file
+Open File AppFolder + CombinedFld +"\"+lnC(list_now) for Append as #5
+Do While Not EOF(4)
+Line Input #4, lnD(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnD(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnD(j)
+j =j+1
+End If
+
+Loop
+Close File #4
+Close File #5
+
+
+
+End If ' FileExist 
+End If ' Condition statement for string length
+
+Next
+
+Print "-------------------------------------------------------------------"
+Print "----------------------FINISH---------------------------------------"
+Print "-------------------------------------------------------------------"
+Kill AppFolder + RevisedFld +"\"+FileName+"\data\doneREV.d"
+
+End Sub
+
+
+

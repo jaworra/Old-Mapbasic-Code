@@ -1,0 +1,373 @@
+' Program to separte Datum products into regions to distribute
+' Programmer: John Worall
+' Date:             18/03/2013
+' Description:    Compares lines horizontal position
+' To Add:
+' Requirments : Two polylines/lines to compare
+Include "mapbasic.def"
+Declare Sub Main
+
+Sub Main
+Dim bufferDistance As Integer
+bufferDistance = 10 'Chanage this???
+
+print chr$(12)
+Close all
+
+'Goto OverlapFunction 'Take this out later
+
+'Exit Sub
+
+
+'Select lines to compare
+Dim referenceLineLocation As String
+Dim comparedLineLocation As String
+referenceLineLocation = FileOpenDlg("\\Metdnw04\DATA2\spatialData\transportation\roads\stateControlled\drn", "", "TAB", "Select reference line")
+If referenceLineLocation = "" Then
+	Print "operation cancelled"
+	Exit Sub
+End If
+comparedLineLocation = FileOpenDlg("\\Metdnw04\DATA2\spatialData\transportation\roads\stateControlled\scRoads", "", "TAB", "Select compated line")
+If comparedLineLocation = "" Then
+	Print "operation cancelled"
+	Exit Sub
+End If	
+
+'Check file exists and delete
+If fileExists("C:\TEMP\refereceTable.TAB")then
+	Open Table "C:\TEMP\refereceTable.TAB" as DeleteMe
+	Drop Table DeleteMe
+End If
+If fileExists("C:\TEMP\compareTable.TAB")then
+	Open Table "C:\TEMP\compareTable.TAB" as DeleteMe
+	Drop Table DeleteMe
+End If
+
+'Save to local drive and open
+Print "Cache datasets locally...."
+Open Table referenceLineLocation As referenceLineNetwork
+Commit Table referenceLineNetwork As "C:\TEMP\refereceTable.TAB"
+Open Table "C:\TEMP\refereceTable.TAB" as refereceTable
+
+Open Table comparedLineLocation As compareLineNetwork
+Commit Table compareLineNetwork As "C:\TEMP\compareTable.TAB"
+Open Table "C:\TEMP\compareTable.TAB" as compareTable
+
+'------------------------------------------------------------------------------------------------
+'Create Table
+'Reference table
+If fileExists("C:\TEMP\finalRefereceTable.TAB")then
+	Open Table "C:\TEMP\finalRefereceTable.TAB" as DeleteMe
+	Drop Table DeleteMe
+End If
+
+Select Col1 from refereceTable where RowID = 1 Into DeleteMe
+Commit Table DeleteMe as "C:\TEMP\finalRefereceTable.TAB"
+Close Table DeleteMe
+Open Table "C:\TEMP\finalRefereceTable.TAB" as finalRefereceTable
+Delete from finalRefereceTable 
+
+'Compare table
+If fileExists("C:\TEMP\finalCompareTable.TAB")then
+	Open Table "C:\TEMP\finalCompareTable.TAB" as DeleteMe
+	Drop Table DeleteMe
+End If
+Select Col1 from compareTable where RowID = 1 Into DeleteMe
+Commit Table DeleteMe as "C:\TEMP\finalCompareTable.TAB"
+Close Table DeleteMe
+Open Table "C:\TEMP\finalCompareTable.TAB" as finalCompareTable
+Delete from finalCompareTable
+
+
+'Combine columns -> Future works users selects column
+Print "Combining Roads by Name...."
+Dim ColumnSelect As String
+
+Fetch First From refereceTable
+Do While Not EOT(refereceTable)
+	ColumnSelect = refereceTable.Col1
+	Select * from refereceTable where refereceTable.Col1 = ColumnSelect into DeleteMe
+	Create Object As union
+	From DeleteMe
+	Into Table finalRefereceTable
+	Data col1 = col1
+	Delete from DeleteMe
+	Close Table DeleteMe
+	Commit Table finalRefereceTable 
+	Fetch Next From refereceTable
+Loop
+Rollback Table refereceTable
+Close Table refereceTable
+
+'Remove _R and _L
+Select * From finalRefereceTable where finalRefereceTable.Col1 Like "%_R" into DeleteMe
+Delete from DeleteMe
+Close Table DeleteMe
+Select * From finalRefereceTable where finalRefereceTable.Col1 Like "%_L" into DeleteMe
+Delete from DeleteMe
+Close Table DeleteMe
+Commit Table finalRefereceTable
+
+
+Fetch First From compareTable 
+Do While Not EOT(compareTable)
+	ColumnSelect = compareTable .Col1
+	Select * from compareTable  where compareTable .Col1 = ColumnSelect into DeleteMe
+	Create Object As union
+	From DeleteMe
+	Into Table finalCompareTable
+	Data col1 = col1
+	Delete from DeleteMe
+	Close Table DeleteMe
+	Commit Table finalCompareTable
+	Fetch Next From compareTable 
+Loop
+Rollback Table compareTable
+Close Table compareTable
+
+'Remove _R and _L
+Print "Removing Roads Names with the Suffix _R or _L...."
+Select * From finalCompareTable where finalCompareTable.Col1 Like "%_R" into DeleteMe
+Delete from DeleteMe
+Close Table DeleteMe
+Select * From finalCompareTable where finalCompareTable.Col1 Like "%_L" into DeleteMe
+Delete from DeleteMe
+Close Table DeleteMe
+Commit Table finalCompareTable
+
+'Create buffer reference dataset 
+If fileExists("C:\TEMP\bufferRefereceTable.TAB")then
+	Open Table "C:\TEMP\bufferRefereceTable" as DeleteMe
+	Drop Table DeleteMe
+End If
+Select Col1 from finalRefereceTable where RowID = 1 Into DeleteMe
+Commit Table DeleteMe as "C:\TEMP\bufferRefereceTable.TAB"
+Close Table DeleteMe
+Open Table "C:\TEMP\bufferRefereceTable.TAB" as bufferRefereceTable
+Delete from bufferRefereceTable 
+
+
+'Save to Buffer Dataset
+Print "Creating Buffer...."
+Dim lineObject As Object
+Fetch First From finalRefereceTable
+Do While Not EOT(finalRefereceTable)
+	lineObject = Buffer(finalRefereceTable.obj,20,bufferDistance,"m")    'Check this out
+	insert into bufferRefereceTable	(obj) values (lineObject) 'no variables
+	Fetch Next From finalRefereceTable
+Loop
+Rollback Table finalRefereceTable
+
+'Analytics 
+Print "Compare Reference Buffer with Local Roads...."
+Dim splitLine As Object
+Dim bufferObj As Object
+Dim colOne As String
+Dim finalObj As Object
+
+Dim debug As Integer
+debug = 0
+
+
+Set Table finalCompareTable
+FastEdit on
+Undo off
+
+Fetch First From bufferRefereceTable
+Do While Not EOT(bufferRefereceTable)
+
+debug =debug+1
+print debug
+
+	bufferObj = bufferRefereceTable.obj	
+	Select * from finalCompareTable where finalCompareTable.obj intersects bufferObj into selection
+	Fetch First From Selection
+	Do Until EOT(Selection)
+		splitLine = selection.obj
+		colOne = selection.col1	
+		finalObj = Erase(finalCompareTable.obj,bufferObj)
+		If ObjectInfo(finalObj,OBJ_INFO_NONEMPTY) = True Then	
+			insert into finalCompareTable(col1, obj) values (colOne,finalObj) 'no variables
+		End If
+			print selection.col1
+		Fetch Next From Selection
+	Loop
+	Delete from selection
+	Commit table finalCompareTable	
+	Pack table finalCompareTable Graphic Data 
+
+	
+	Fetch Next From bufferRefereceTable
+	
+Loop
+
+Print "Output...."
+If fileExists("C:\TEMP\LSCR.TAB")then
+	Open Table "C:\TEMP\LSCR.TAB" as DeleteMe
+	Drop Table DeleteMe
+End If
+Commit Table finalCompareTable as "C:\TEMP\LSCR.TAB"
+Open Table "C:\TEMP\LSCR.TAB" as LSCR
+Browse * from LSCR
+
+''------Uncomment below section if you do not want to combine buffer objects
+''Merge Buffer objects to last row of buffer table
+'Create Object as Union
+'from bufferRefereceTable
+'Into Table bufferRefereceTable
+'Data col1 = col1
+''Delete all rows except last
+'Dim lastRow as Integer
+'lastRow = TableInfo(bufferRefereceTable, TAB_INFO_NROWS)
+'Select * from bufferRefereceTable where RowID < lastRow into DeleteMe
+'Delete from DeleteMe
+'Close Table DeleteMe
+''------Uncomment above section if you do not want to combine buffer objects
+'Commit table bufferRefereceTable
+
+'Record road length to add
+' Add three columns to LSC table 1) Total length  2) Lenght within buffer 3) Ratio  
+'Alter Table LSCR 
+'	Add Total_Dist
+	
+
+'OverlapFunction: ' Take this out later
+'overlay
+Close all
+Open Table "C:\TEMP\LSCR.TAB" as LSCR ' Comment out later
+
+If fileExists("C:\TEMP\RoadsOutsideBuffer"+bufferDistance+".TAB")then
+	Open Table "C:\TEMP\RoadsOutsideBuffer"+bufferDistance+".TAB"as DeleteMe
+	Drop Table DeleteMe
+End If
+
+	'SQL Query
+	Select col1,ObjectLen(obj,"m")"Total_Dist_m" from LSCR order by "Total_Dist_m" Desc into Selection
+	Browse * From Selection
+	Commit Table Selection As "C:\TEMP\RoadsOutsideBuffer"+bufferDistance+".TAB"
+
+End Sub
+
+
+'Open Table "C:\TEMP\bufferRefereceTable.TAB" as bufferRefereceTable ' REMOVE THIS!!
+'
+'Dim nRow as Integer
+'Dim myobj As Object
+'Dim bufferObj As Object
+'
+''Select * from bufferRefereceTable into Selection
+''bufferObj = selection.obj
+'
+'Select * from compareTable Where RowID = 551 into Selection 'Interesection
+'Exit sub
+'
+'Dim splitLine As Object
+'Dim counterInt As Integer
+'counterInt = 0
+'
+'Fetch First From compareTable 
+'Do While Not EOT(compareTable)
+'	'splitLine = compareTable.obj	
+'	counterInt = counterInt+1
+'
+'	Select * from compareTable where RowID = 551 'counterInt
+'	Set target on
+'	Select * from bufferRefereceTable
+'	Objects Split Into Target
+'
+'	Exit Sub
+'	Fetch Next From compareTable 
+'Loop
+'Rollback Table refereceTable
+'Close Table refereceTable
+'
+'Exit sub
+'
+'Fetch First From Selection
+'Do Until EOT(Selection)
+'		Set target on
+'        myobj = selection.obj
+'        nRow = selection.ROWID
+'       
+'       Select * from Selection
+'
+''        Alter Object myobj
+''                Info OBJ_INFO_BRUSH, b
+''
+''        Update Selection
+''                Set obj = myobj
+''                Where ROWID = nRow
+'
+'        Fetch Next From Selection
+'Loop 
+'
+''Dim splitLine As Object
+''Dim counterInt As Integer
+'counterInt = 0
+'
+'Fetch First From compareTable 
+'Do While Not EOT(compareTable)
+'	'splitLine = compareTable.obj	
+'	
+'	counterInt = counterInt+1
+'	Select * from compareTable where RowID = counterInt
+'	Exit sub
+'	Set target on
+'	Select * from bufferRefereceTable 
+'	Objects Split Into Target
+'	
+'	'Create Cutter Into Target
+'
+'	Exit Sub
+'	Fetch Next From compareTable 
+'Loop
+'Rollback Table refereceTable
+'Close Table refereceTable
+'
+'
+'Exit sub
+'
+'Fetch First From Selection
+'Do Until EOT(Selection)
+'		Set target on
+'        myobj = selection.obj
+'        nRow = selection.ROWID
+'       
+'       Select * from Selection
+'        
+'
+''        Alter Object myobj
+''                Info OBJ_INFO_BRUSH, b
+''
+''        Update Selection
+''                Set obj = myobj
+''                Where ROWID = nRow
+'
+'        Fetch Next From Selection
+'Loop 
+'
+'
+''Dim splitLine As Object
+''Dim counterInt As Integer
+'counterInt = 0
+'
+'Fetch First From compareTable 
+'Do While Not EOT(compareTable)
+'	'splitLine = compareTable.obj	
+'	
+'	counterInt = counterInt+1
+'	Select * from compareTable where RowID = counterInt
+'	Exit sub
+'	Set target on
+'	Select * from bufferRefereceTable 
+'	Objects Split Into Target
+'	
+'	'Create Cutter Into Target
+'
+'	Exit Sub
+'	Fetch Next From compareTable 
+'Loop
+'Rollback Table refereceTable
+'Close Table refereceTable
+'
+'Exit sub

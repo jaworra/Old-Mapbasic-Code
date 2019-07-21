@@ -1,0 +1,650 @@
+	'================================================================================================================='
+' Programmer:       John Worrall																								'
+' Last Update:      17/01/2021																									'
+'																																	'	
+' Description:    																												'
+'  - Heavy vehicle process																										'
+' Combine files by month																											'
+																																	'
+' Furture Works - Combined sub functions 																						'
+'               - Option for user entry or select of files to process													'
+' Bugs 		  - Investigate I/0 issue where space at end of file is being writtern out. 							'
+'				   - Requires	maunual entry for list filenames																'
+'================================================================================================================='
+
+'                      .         .                           
+'8888888 8888888888   ,8.       ,8.          8 888888888o.   
+'      8 8888        ,888.     ,888.         8 8888    `88.  
+'      8 8888       .`8888.   .`8888.        8 8888     `88  
+'      8 8888      ,8.`8888. ,8.`8888.       8 8888     ,88  
+'      8 8888     ,8'8.`8888,8^8.`8888.      8 8888.   ,88'  
+'      8 8888    ,8' `8.`8888' `8.`8888.     8 888888888P'   
+'      8 8888   ,8'   `8.`88'   `8.`8888.    8 8888`8b       
+'      8 8888  ,8'     `8.`'     `8.`8888.   8 8888 `8b.     
+'      8 8888 ,8'       `8        `8.`8888.  8 8888   `8b.   
+'      8 8888,8'         `         `8.`8888. 8 8888     `88. 
+
+'                                                                                                                                                                                                                       
+'     ,o888888o.    8 8888888888       ,o888888o.       d888888o.   8 888888888o 8888888 8888888888   .8.           8 8888 8 8888                   8888888 8888888888 8 8888888888       ,o888888o.    8 8888        8 
+'    8888     `88.  8 8888          . 8888     `88.   .`8888:' `88. 8 8888    `88.     8 8888        .888.          8 8888 8 8888                         8 8888       8 8888            8888     `88.  8 8888        8 
+' ,8 8888       `8. 8 8888         ,8 8888       `8b  8.`8888.   Y8 8 8888     `88     8 8888       :88888.         8 8888 8 8888                         8 8888       8 8888         ,8 8888       `8. 8 8888        8 
+' 88 8888           8 8888         88 8888        `8b `8.`8888.     8 8888     ,88     8 8888      . `88888.        8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888        8 
+' 88 8888           8 888888888888 88 8888         88  `8.`8888.    8 8888.   ,88'     8 8888     .8. `88888.       8 8888 8 8888                         8 8888       8 888888888888 88 8888           8 8888        8 
+' 88 8888           8 8888         88 8888         88   `8.`8888.   8 888888888P'      8 8888    .8`8. `88888.      8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888        8 
+' 88 8888   8888888 8 8888         88 8888        ,8P    `8.`8888.  8 8888             8 8888   .8' `8. `88888.     8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888888888888 
+' `8 8888       .8' 8 8888         `8 8888       ,8P 8b   `8.`8888. 8 8888             8 8888  .8'   `8. `88888.    8 8888 8 8888                         8 8888       8 8888         `8 8888       .8' 8 8888        8 
+'    8888     ,88'  8 8888          ` 8888     ,88'  `8b.  ;8.`8888 8 8888             8 8888 .888888888. `88888.   8 8888 8 8888                         8 8888       8 8888            8888     ,88'  8 8888        8 
+'     `8888888P'    8 888888888888     `8888888P'     `Y8888P ,88P' 8 8888             8 8888.8'       `8. `88888.  8 8888 8 888888888888                 8 8888       8 888888888888     `8888888P'    8 8888        8 
+'
+'
+'================================================================================================================='
+
+'Library
+'*********************************************************************************************
+Include "mapbasic.def"
+Include "icons.def"
+Include "Menu.def" ' -> not needed?
+
+'*********************************************************************************************
+Declare Sub Main
+Declare Sub ReWriteIAP (ByVal AppFolder as String,ByVal FileName as String,ByVal CombinedFld as String,ByVal RevisedFld as String)
+
+Sub Main
+
+
+Print "-------------------------------------------------------------------"
+Print "---------------------------------------START"
+Print "-------------------------------------------------------------------"
+
+'=================================================================================================
+' Output list of files to combine - run cmd prompt
+'------------------------------------------------------------------------------------------
+ 
+Dim UsersFilePath As String
+Dim PasteDirctFnl As String
+Dim CopyDirctOrgFnl As String
+Dim ln As String
+Dim AppFolder as String
+Dim RevisedFld as String
+Dim CombinedFld as String
+
+AppFolder = ApplicationDirectory$()
+Print AppFolder +"- Current Location  (Path)"
+
+
+Dim StrPth As SmallInt
+StrPth = Len(AppFolder)
+
+RevisedFld = "Rev"
+CombinedFld = "Cmb"
+
+
+Run Program "CMD.EXE /c dir " + AppFolder +" /b /s /a:d > "+AppFolder +"SubFList.txt"+"&& echo done>"+AppFolder+"done1.d"
+Run Program "CMD.EXE /c mkdir "+ AppFolder +CombinedFld
+'Run Program "CMD.EXE /c mkdir "+ AppFolder + RevisedFld
+
+'Waits until command has finished executing
+Do While Not FileExists(AppFolder+"done1.d")  
+Loop 
+
+Dim lnK(30000) As String
+Dim lnL(30000) As String
+Dim SubStrPath As String
+Dim K as Integer
+Dim L as Integer
+Dim M as Integer
+Dim FinT as Integer
+Dim lengthStr3 As Integer
+
+M = 12 ' The maximum number of character in vehicleID
+
+Open File AppFolder +"SubFList.txt" for Input as #2	'Enter list file to process here
+k = 1
+L = 1
+Do While Not EOF(2)
+Line Input #2,lnK(k)
+'Print lnk(k) + " ---> K " +k
+
+'SubStrPath =lnk(k)
+'FinT = InStr(8,"C:\IAP\00005\dat","\")
+'FinT = InStr(StrPth+1,SubStrPath,"\")
+'FinT = InStr(StrPth+1,lnK(k),"\")
+
+'Print StrPth +" START"
+
+lnL(L) = Mid$(lnk(k),StrPth+1,StrPth+M)
+FinT = InStr(1,lnL(L),"\")
+
+' If there is no character / character
+If FinT = 0 Then 
+'Print FinT  + " Position of \"
+'Print lnL(L) + " ---> L  " +L 
+
+' Get rid of empty string
+lengthStr3 = Len (lnL(L))
+If lengthStr3 > 0 Then
+
+'Print lnL(L) + " ---> L2  "  +L 
+' Call the function here!
+
+If (StringCompare(lnL(L),CombinedFld) <> 0)  Then  ' Need to combine these to IF statements
+If (StringCompare(lnL(L),RevisedFld) <> 0)  Then  
+Call ReWriteIAP (AppFolder,lnL(L),CombinedFld,RevisedFld)
+End If
+End If
+
+
+End If
+End If
+
+L =L+1
+K =K+1
+Loop
+Close File #2
+
+Kill (AppFolder+"done1.d") 
+Kill (AppFolder+"SubFList.txt") 
+
+
+
+
+End Sub
+
+
+'================================================================================================
+'Sub Function Rewrite
+'================================================================================================
+Sub ReWriteIAP(ByVal AppFolder as String,ByVal FileName as String,ByVal CombinedFld as String,ByVal RevisedFld as String)
+
+Print FileName
+
+'If FileExists(AppFolder + RevisedFld +"\"+FileName+"\data\")Then
+'Print "There should only be one"
+'End If
+'Exit Sub
+
+Print "Application folder" + AppFolder+"  File Name"+FileName
+
+Dim SubAppFolder As String
+
+SubAppFolder = AppFolder+FileName+"\data\"
+
+Run Program "CMD.EXE /c mkdir "+ AppFolder + RevisedFld +"\"+FileName+"\data" +"&& echo done>"+AppFolder + RevisedFld +"\"+FileName+"\data\done3.d"
+' Creates file folder in parent directory
+
+'Waits until command has finished executing
+Do While Not FileExists(AppFolder + RevisedFld +"\"+FileName+"\data\done3.d")
+Loop 
+
+
+Run Program "CMD.EXE /c dir " + SubAppFolder +"*.pos" + " /b > "+AppFolder + RevisedFld +"\"+FileName+"\data\POS_list.txt"+"&& echo done>"+AppFolder + RevisedFld +"\"+FileName+"\data\done.d"
+
+'Waits until command has finished executing
+Do While Not FileExists(AppFolder + RevisedFld +"\"+FileName+"\data\done.d")
+Loop 
+
+
+'Run Program "CMD.EXE /c mkdir "+ SubAppFolder +RevisedFld  ' DELETE THIS LATER!
+'For sub folders need /b - bare format  /s - subfolders  /A:D - folder
+
+Run Program "CMD.EXE /c dir " + SubAppFolder +"*.sdm" + " /b > "+AppFolder + RevisedFld +"\"+FileName+"\data\SDM_list.txt"+"&& echo done>"+AppFolder + RevisedFld +"\"+FileName+"\data\done2.d"
+
+
+'Waits until command has finished executing
+Do While Not FileExists(AppFolder + RevisedFld +"\"+FileName+"\data\done2.d")
+Loop 
+
+'================================================================================================
+'User entry of Vehicle ID number
+Dim SubFold As String
+
+SubFold = FileName
+
+'=================================================================================================
+' Identifies heavy vehicle ID numbers
+'------------------------------------------------------------------------------------------
+
+Dim StrLen As SmallInt
+Dim StrAd As String
+'Dim SubFold As String
+Dim FSubFold As String
+
+'Set unique Vehicle ID
+StrLen = 11 - Len(SubFold)
+StrAd = "0"
+'print StrLen
+
+'While loop to assign unique id for vehicle
+While StrLen < 12
+SubFold =StrAd + SubFold
+StrLen =StrLen+1
+Wend
+Print SubFold+ " - Vehicle ID  (Variable)"
+
+'=================================================================================================
+' Process existing file and recreate
+'------------------------------------------------------------------------------------------
+Print "-------------------------------------------------------------------"
+Print "---------------------------------------Rewrite .sdm file"
+Print "-------------------------------------------------------------------"
+
+Dim i As Integer
+Dim j As Integer
+i = 1
+j = 1
+Dim lnS(30000) As String
+Dim lnT(30000) As String
+Dim lengthStr,lengthStr2 As SmallInt
+
+If not FileExists(AppFolder + RevisedFld +"\"+FileName+"\data\SDM_list.txt") Then
+Exit Sub
+End If
+
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\SDM_list.txt" for Input as #3		'Enter list file to process here
+Do While Not EOF(3)
+j = 1
+Line Input #3,lnS(i)
+lengthStr2 = Len (lnS(i))
+If lengthStr2 > 0 Then
+
+
+'Print lnS(i) +" j="+j+" i="+i ' Test first loop output
+Open File SubAppFolder+lnS(i) for Input as #4
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+lnS(i) for Output as #5 ' Got to create a folder call new here!!
+Do While Not EOF(4)
+Line Input #4, lnT(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnT(j))
+If lengthStr > 11 Then  ' any more the unique Vehicle ID
+Print #5,SubFold+lnT(j)
+j =j+1
+End If
+
+'Print lnT(j)+ " - Data (Variable)"
+Loop
+Close File #4
+Close File #5
+
+Print lnS(i)+ " - File (Variable)"
+i =i+1
+End If
+
+
+Loop
+
+Close File #3
+
+'=================================================================================================
+' POS FILE
+'=================================================================================================
+Print "-------------------------------------------------------------------"
+Print "---------------------------------------Rewrite .pos file"
+Print "-------------------------------------------------------------------"
+
+i = 1
+j = 1
+
+
+
+If not fileexists(AppFolder + RevisedFld +"\"+FileName+"\data\POS_list.txt")Then
+Exit Sub
+End If
+
+
+
+' Open list to run files, run nested loop to output line by line
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\POS_list.txt" for Input as #3		'Enter list file to process here
+Do While Not EOF(3)
+j = 1
+Line Input #3,lnS(i)
+
+lengthStr2 = Len (lnS(i))
+If lengthStr2 > 0 Then   ' Line input has characters proceed
+
+'Print lnS(i) +" j="+j+" i="+i ' Test first loop output
+Open File SubAppFolder+lnS(i) for Input as #4
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+lnS(i) for Output as #5 ' Got to create a folder call new here!!
+Do While Not EOF(4)
+Line Input #4, lnT(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnT(j))
+If lengthStr > 11 Then  ' any more the unique Vehicle ID
+Print #5,SubFold+lnT(j)
+j =j+1
+End If
+
+'Print lnT(j)+ " - Data (Variable)"
+Loop
+Close File #4
+Close File #5
+
+Print lnS(i)+ " - File (Variable)"
+i =i+1
+
+End If
+Loop
+Close File #3
+
+Redim lnS(0)
+
+'------------------------------------------------------------------------------------------
+'SubAppFolder = AppFolder+FileName+"\data\"
+
+'------------------------------------------------------------------------------------------
+
+Print "-----------------------------------------------------------------------------------------------------------------------------------"
+Print "---------------------------------------Combined Files of .sdm"
+Print "-----------------------------------------------------------------------------------------------------------------------------------"
+
+
+'=================================================================================================
+' Process existing file and recreate
+'------------------------------------------------------------------------------------------
+
+i = 1
+j = 1
+
+Dim lnU(30000) As String
+Dim lnV(30000) As String
+
+' Open list to run files, run nested loop to output line by line
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\SDM_list.txt" for Input as #3
+Do While Not EOF(3)
+j = 1
+Line Input #3,lnU(i)
+
+lengthStr2 = Len (lnU(i))
+If lengthStr2 > 0 Then
+
+Dim lnN(30000) As String
+Dim lnO(30000) As String
+Dim lnF(30000) As String
+
+lnN(i) = Mid$(lnU(i),1,6)
+lnO(i) = Mid$(lnU(i),9,24)
+lnF(i)= lnN(i)+lnO(i)
+
+'------------------------------------------------------------------------------------------
+' File Exist  ' DONT NEED THIS LOOP
+
+If FileExists (AppFolder+CombinedFld+"\"+lnF(i)) Then    ' If the Month file has already been created. 
+'Print AppFolder+CombinedFld+"\"+lnF(i) +"True"
+
+Print lnU(i)+"  This record needs to be combined"
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+lnU(i) for Input as #4   ' Read in rewrittern file
+Open File AppFolder + CombinedFld +"\"+lnF(i) for Append as #5
+Do While Not EOF(4)
+Line Input #4, lnV(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnV(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnV(j)
+j =j+1
+End If
+
+
+Loop
+Close File #4
+Close File #5
+
+
+'ElseIf not FileExists (AppFolder+CombinedFld+"\"+lnF(i)) Then
+'Print AppFolder+CombinedFld+"\"+lnF(i)+"Flase"
+'End If
+
+
+'------------------------------------------------------------------------------------------
+' First Record Store 
+
+ElseIf i = 1 Then
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+lnU(i) for Input as #4
+Open File AppFolder + CombinedFld +"\"+lnF(i) for Output as #5
+Do While Not EOF(4)
+Line Input #4, lnV(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnV(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnV(j)
+j =j+1
+End If
+
+Loop
+Close File #4
+Close File #5
+
+Print lnU(i)+"          - First record of the month " + lnF(i)
+i =i+1
+
+'------------------------------------------------------------------------------------------
+' Unique Record Store 
+
+ElseIf lnN(i)<>lnN(i-1) Then
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+lnU(i) for Input as #4
+Open File AppFolder + CombinedFld +"\"+lnF(i) for Output as #5
+Do While Not EOF(4)
+Line Input #4, lnV(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnV(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnV(j)
+j =j+1
+End If
+
+Loop
+Close File #4
+Close File #5
+Print lnU(i)+"          - First record of the month " + lnF(i)
+i =i+1
+
+'------------------------------------------------------------------------------------------
+'Otherwise check for same month and append
+ElseIf  lnN(i)=lnN(i-1) Then
+Print lnU(i)+"  This record needs to be combined"
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+lnU(i) for Input as #4
+Open File AppFolder + CombinedFld +"\"+lnF(i) for Append as #5
+Do While Not EOF(4)
+Line Input #4, lnV(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnV(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnV(j)
+j =j+1
+End If
+
+Loop
+Close File #4
+Close File #5
+
+
+
+'End If   ' Loop for file exist 
+End IF
+End If
+'------------------------------------------------------------------------------------------
+Loop
+Close File #3
+
+
+
+'------------------------------------------------------------------------------------------
+
+Print "-----------------------------------------------------------------------------------------------------------------------------------"
+Print "---------------------------------------Combined Files of .pos"
+Print "-----------------------------------------------------------------------------------------------------------------------------------"
+
+
+'=================================================================================================
+' Process existing file and recreate
+'------------------------------------------------------------------------------------------
+
+i = 1
+j = 1
+
+
+' Open list to run files, run nested loop to output line by line
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\POS_list.txt" for Input as #3
+Do While Not EOF(3)
+j = 1
+Line Input #3,lnU(i)
+
+lengthStr2 = Len (lnU(i))
+If lengthStr2 > 0 Then
+
+'Dim lnN(30000) As String
+'Dim lnO(30000) As String
+'Dim lnF(30000) As String
+
+lnN(i) = Mid$(lnU(i),1,6)
+lnO(i) = Mid$(lnU(i),9,24)
+lnF(i)= lnN(i)+lnO(i)
+
+'Print lnF(i)+ "   lnf"
+'Print lnU(i)+ "   lnu"
+
+'------------------------------------------ DELETE THIS
+
+If FileExists (AppFolder+CombinedFld+"\"+lnF(i)) Then  
+'Print AppFolder+CombinedFld+"\"+lnF(i) +"True"
+
+Print lnU(i)+"  This record needs to be combined"
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+lnU(i) for Input as #4
+Open File AppFolder + CombinedFld +"\"+lnF(i) for Append as #5
+Do While Not EOF(4)
+Line Input #4, lnV(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnV(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnV(j)
+j =j+1
+End If
+
+
+Loop
+Close File #4
+Close File #5
+
+
+
+'ElseIf not FileExists (AppFolder+CombinedFld+"\"+lnF(i)) Then
+'Print AppFolder+CombinedFld+"\"+lnF(i)+"Flase"
+'End If
+
+
+
+
+'------------------------------------------------------------------------------------------
+' First Record Store 
+
+ElseIf i = 1 Then
+'Print SubAppFolder+RevisedFld+"\"+lnU(i) + "THIS IS THE path lnU(i)"
+'Print AppFolder+CombinedFld+"\"+lnF(i)+"This IS the path tow lnF(i)"
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+lnU(i) for Input as #4
+Open File AppFolder + CombinedFld +"\"+lnF(i) for Output as #5
+Do While Not EOF(4)
+Line Input #4, lnV(j)
+
+'Print AppFolder+CombinedFld+"\"+lnV(j)+"This IS the path tow lnV(j)"
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnV(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnV(j)
+j =j+1
+End If
+
+Loop
+Close File #4
+Close File #5
+
+Print lnU(i)+"          - First record of the month " + lnF(i)
+i =i+1
+
+'------------------------------------------------------------------------------------------
+' Unique Record Store 
+ElseIf lnN(i)<>lnN(i-1) Then
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+lnU(i) for Input as #4
+Open File AppFolder + CombinedFld +"\"+lnF(i) for Output as #5
+Do While Not EOF(4)
+Line Input #4, lnV(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnV(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnV(j)
+j =j+1
+End If
+
+Loop
+Close File #4
+Close File #5
+Print lnU(i)+"          - First record of the month " + lnF(i)
+i =i+1
+
+'------------------------------------------------------------------------------------------
+'Otherwis check for same month and append
+ElseIf  lnN(i)=lnN(i-1) Then
+Print lnU(i)+"  This record needs to be combined"
+Open File AppFolder + RevisedFld +"\"+FileName+"\data\"+lnU(i) for Input as #4
+Open File AppFolder + CombinedFld +"\"+lnF(i) for Append as #5
+Do While Not EOF(4)
+Line Input #4, lnV(j)
+
+'Check for empty and skips if untrue print record
+lengthStr = Len (lnV(j))
+If lengthStr > 11 Then  ' Change this
+Print #5,lnV(j)
+j =j+1
+End If
+
+
+Loop
+Close File #4
+Close File #5
+
+'------------------------------------------------------------------------------------------DELETLELETLELEL
+
+End If
+Print "Final End IF 1"
+End If
+Print "Final End IF 2"
+'------------------------------------------------------------------------------------------
+Loop
+Print "Final LOOP1"
+Close File #3
+
+Kill AppFolder + RevisedFld +"\"+FileName+"\data\done.d"
+Kill AppFolder + RevisedFld +"\"+FileName+"\data\done3.d"
+Kill AppFolder + RevisedFld +"\"+FileName+"\data\done2.d"
+Kill AppFolder + RevisedFld +"\"+FileName+"\data\SDM_list.txt"
+Kill AppFolder + RevisedFld +"\"+FileName+"\data\POS_list.txt"
+
+
+Print "-----------------------------------------------------------------------------------------------------------------------------------"
+Print "---------------------------------------FINISH"
+Print "-----------------------------------------------------------------------------------------------------------------------------------"
+
+'End If
+'ElseIf FileExists (AppFolder+CombinedFld+"\"+lnF(i)) = "True" Then
+'Print "Second record"
+'End If
+'Kill (AppFolder+"done1.d") 
+
+End Sub
+
+
+
+
+
+
+
+
+
+
+

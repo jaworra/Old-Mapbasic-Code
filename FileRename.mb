@@ -1,0 +1,75 @@
+'================================================================================================================='
+'																																	'
+'Programmer: 		John Worrall																								'
+'Last Update: 	31/07/2012																										'
+'Version: 			1.0																												'
+'																																	'
+'Description: 																													'
+'			File Rename	
+'TODO:																																'
+'																																	'
+'================================================================================================================='
+
+
+
+Include "MAPBASIC.DEF"
+Include "ICONS.DEF"
+
+Declare Sub Main
+Declare Sub FileRename
+Declare Function ExtractCoordsys() As Integer
+Declare Function ExtractBoundary(ByVal seeked As Logical, foundModel As Logical) As Object
+Declare Sub DeleteBoundaries
+
+
+Sub Main
+
+	Create ButtonPad "Get File Rename" As 
+		PushButton 
+			Calling FileRename
+			Icon MI_ICON_POLYGON
+			HelpMsg "Create Boundary Box from Txt File"
+
+End Sub
+
+Sub FileRename
+	
+	'Open file to rename
+	Dim FilePathRename As String
+	FilePathRename = FileOpenDlg("","","TAB","Open TAB File")
+
+
+	If 	FilePathRename = "" Then
+		Exit Sub
+	End If
+
+' Ask users for the filename to change
+Dim FileRename As String
+Dim FilePath As String
+
+FilePath=PathToDirectory$(FilePathRename)
+
+Dialog Title "File Rename"
+		Control StaticText
+			Title "New File Name: "
+			Position 5, 5
+		Control EditText
+			Value ""
+			Into FileRename
+			ID 1
+			Position 110, 3 Width 100
+		Control OKButton
+			Position 5, 20 Width 100
+		Control CancelButton
+			Position 110, 20 Width 100
+	If Not CommandInfo(CMD_INFO_DLG_OK) Then
+		Exit Sub
+	End If
+
+
+
+Open Table FilePathRename As Orignal
+Rename Table Orignal As FilePath+FileRename 
+
+End Sub
+

@@ -1,0 +1,77 @@
+' Programmer: John Worall
+' Date:             29/05/2012
+' Description:     Reads KML file GXTRACK Schema > 2.2
+
+'Extracts Coordinates from the below line and create a polyline
+'<gx:coord>153.2135403 -27.5199099 130.9291077</gx:coord>	    		 
+
+
+' Bugs/Updates Required: 
+' Writes File name of input
+' Input mulitpoints to represent the heights
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+
+Declare Sub Main
+
+Sub Main
+
+Dim pln As Object
+Dim ln,TableName,InputCord As String
+Dim Xl,Yl As Float
+Dim Zh As String 
+Dim NumPt,SpacePos,SpacePos1 As Integer
+
+Print Chr$(12)
+
+Open File FileOpenDlg("C:\", "", "*.KML", "open KML file") For Input As 1
+
+TableName = "KML_FILE"
+Create Table TableName 
+	(Height Char(20))
+Create Map For TableName
+Map From TableName 
+Set Map CoordSys Earth Projection 1,104  ' Sets projection WGS84
+
+'Initialise Variables
+NumPt = 1
+Create Pline Into Variable pln 0
+
+Do While Not EOF(1)
+
+Line Input #1, ln
+
+	If Mid$(ln,1,13) = "			<gx:coord>" Then  'Finds Coord string in file
+
+	SpacePos = InStr(11,ln," -")' Finds the start position of Lat
+	SpacePos1 = InStr(30,ln," ")' Starting position of z - for attribute
+
+	Xl=Mid$(ln,14,11)
+	Yl=Mid$(ln,SpacePos,12)
+	Zh=Mid$(ln,SpacePos1,9)
+	
+
+	' Add Values nodes to lines
+	Alter Object pln
+	Node Add (Xl,Yl)
+
+	'Future works to input points
+
+	NumPt = NumPt+1
+	End If
+
+Loop
+
+	Insert Into TableName
+	(Height,Obj)
+	Values("", pln)
+
+
+Set Map Zoom Entire Layer TableName
+set map redraw on
+
+
+End Sub

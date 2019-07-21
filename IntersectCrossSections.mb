@@ -1,0 +1,133 @@
+' Program to combine by masterID etc
+' Date:           10/02/2014
+' Description:    iterates rows nodes of polyline and seperates/cuts based on distance
+' To Add:
+' Requirments : 
+
+Include "mapbasic.def"
+Declare Sub Main
+
+Sub Main
+	print chr$(12)
+	Close all
+
+
+	Dim PolyTbl,PntTbl As String
+	Dim TempFile,TempFile2 As String 
+	PolyTbl=FileOpenDlg("C:\Documents and Settings\jaworra\Desktop\EV_Statistics\Counts", "", "*.Tab", "open file to clean")
+	PntTbl=FileOpenDlg("C:\Documents and Settings\jaworra\Desktop\EV_Statistics\Counts", "", "*.Tab", "open file to clean")
+	
+	TempFile="C:\TEMP\HeatTempTbl.TAB"
+	TempFile2="C:\TEMP\HeatTempTbl2.TAB"
+	
+	'Check file exists and delete
+	If fileExists(TempFile)then
+		Open Table TempFile as DeleteMe
+		Drop Table DeleteMe
+	End If
+	
+	'Save to local drive and open
+	Print "Cache datasets locally...."
+	Open Table PolyTbl as UserSelTbl
+	Open Table PntTbl As UserPointTbl
+	Commit Table UserSelTbl as TempFile
+	Open Table TempFile as TempTbl
+	Delete from TempTbl
+	Commit Table TempTbl
+	Pack Table TempTbl Graphic Data
+	
+	Dim j,k as Integer
+	Dim ObjA as Object
+	Dim Obj1,Obj2,Obj3,Obj4,Obj5,Obj6,Obj7,Obj8,Obj9,Obj10 as Object
+	Dim Col1,Col2,Col3 as String
+	j=0
+	k=1
+
+	Fetch First From UserPointTbl
+		Obj1=UserPointTbl.obj
+	Fetch Next From UserPointTbl
+		Obj2=UserPointTbl.obj
+	Fetch Next From UserPointTbl
+		Obj3=UserPointTbl.obj
+	Fetch Next From UserPointTbl
+		Obj4=UserPointTbl.obj
+	Fetch Next From UserPointTbl
+		Obj5=UserPointTbl.obj
+	Fetch Next From UserPointTbl
+		Obj6=UserPointTbl.obj
+	Fetch Next From UserPointTbl
+		Obj7=UserPointTbl.obj
+	Fetch Next From UserPointTbl
+		Obj8=UserPointTbl.obj
+	Fetch Next From UserPointTbl
+		Obj9=UserPointTbl.obj
+
+
+	'Option 1 - save object as variable 
+	Dim CtObj1,CtObj2,CtObj3,CtObj4,CtObj5,CtObj6,CtObj7,CtObj8,CtObj9,CtObj10 as Integer
+	Set Table UserSelTbl FastEdit On Undo Off
+	Fetch First From UserSelTbl
+	Do While Not EOT (UserSelTbl) ' loops through routes
+		j=j+1
+		ObjA=UserSelTbl.obj
+			
+	 	Select * from UserSelTbl where ObjA intersects Obj1 into DupeSelTab
+	 	If SelectionInfo(SEL_INFO_NROWS) <> 0 Then
+	 		CtObj1=CtObj1+1
+	 	End If
+	 	
+	 	Select * from UserSelTbl where ObjA intersects Obj2 into DupeSelTab
+	 	If SelectionInfo(SEL_INFO_NROWS) <> 0 Then
+	 		CtObj2=CtObj2+1
+	 	End If	 	
+	 	
+	 	Select * from UserSelTbl where ObjA intersects Obj3 into DupeSelTab
+	 	If SelectionInfo(SEL_INFO_NROWS) <> 0 Then
+	 		CtObj3=CtObj3+1
+	 	End If	 	
+	 	
+	 	Select * from UserSelTbl where ObjA intersects Obj4 into DupeSelTab
+	 	If SelectionInfo(SEL_INFO_NROWS) <> 0 Then
+	 		CtObj4=CtObj4+1
+	 	End If	 	
+	 	
+	 	Select * from UserSelTbl where ObjA intersects Obj5 into DupeSelTab
+	 	If SelectionInfo(SEL_INFO_NROWS) <> 0 Then
+	 		CtObj5=CtObj5+1
+	 	End If	 	
+	 	
+	 	Select * from UserSelTbl where ObjA intersects Obj6 into DupeSelTab
+	 	If SelectionInfo(SEL_INFO_NROWS) <> 0 Then
+	 		CtObj6=CtObj6+1
+	 	End If	 	
+	 	
+	 	Select * from UserSelTbl where ObjA intersects Obj7 into DupeSelTab
+	 	If SelectionInfo(SEL_INFO_NROWS) <> 0 Then
+	 		CtObj7=CtObj7+1
+	 	End If	 	
+	 	
+	 	Select * from UserSelTbl where ObjA intersects Obj8 into DupeSelTab
+	 	If SelectionInfo(SEL_INFO_NROWS) <> 0 Then
+	 		CtObj8=CtObj8+1
+	 	End If	 	
+	 	
+	 	Select * from UserSelTbl where ObjA intersects Obj9 into DupeSelTab
+	 	If SelectionInfo(SEL_INFO_NROWS) <> 0 Then
+	 		CtObj9=CtObj9+1
+	 	End If	
+	 
+	 	print j
+	Fetch Next From UserSelTbl
+	Loop
+	
+	Print "Obj 1: "+CtObj1
+	Print "Obj 2: "+CtObj2	
+	Print "Obj 3: "+CtObj3	
+	Print "Obj 4: "+CtObj4	
+	Print "Obj 5: "+CtObj5
+	Print "Obj 6: "+CtObj6	
+	Print "Obj 7: "+CtObj7
+	Print "Obj 8: "+CtObj8
+	Print "Obj 9: "+CtObj9
+
+End Sub

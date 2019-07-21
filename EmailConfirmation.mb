@@ -1,0 +1,149 @@
+' Definition File 	Sub Routine
+' Project	        
+' Programmer:       John Worrall
+' Last UpDate:      31/10/2012      
+' Version:          AppVersion (see below)
+' Description:      Sends email confirmation once processing is completed
+' Future Works:     Include attachment log in email
+'					
+' Function Arguments
+' > 
+Global RuntimeError As Logical
+
+
+'**********Custom Types***************
+Type STARTUPINFO
+      cb As Integer
+      lpReserved As String
+      lpDesktop As String
+      lpTitle As String
+      dwX As Integer
+      dwY As Integer
+      dwXSize As Integer
+      dwYSize As Integer
+      dwXCountChars As Integer
+      dwYCountChars As Integer
+      dwFillAttribute As Integer
+      dwFlags As Integer
+      wShowWindow As Smallint
+      cbReserved2 As Smallint
+      lpReserved2 As Integer
+      hStdInput As Integer
+      hStdOutput As Integer
+      hStdError As Integer
+End Type
+
+Type PROCESS_INFORMATION
+    hProcess As Integer
+    hThread As Integer
+    dwProcessID As Integer
+    dwThreadID As Integer
+End Type
+
+Define NORMAL_PRIORITY_CLASS  &H20
+Define INFINITE -1
+
+
+'***********SUBS And FUNCTIONS*****************
+Declare Sub ExecuteAndWait(ByVal cmdLine As String)
+Declare Sub Main
+Declare Function CloseHandle Lib "kernel32" (hObject As Integer) As smallint
+Declare Function WaitForSingleObject Lib "kernel32" (ByVal hHandle As Integer, 
+													 ByVal dwMilliseconds As Integer) 
+													 As Integer
+													 
+Declare Function CreateProcessA Lib "kernel32" (ByVal lpApplicationName As Integer, 
+												ByVal lpCommandLine As String, 
+												ByVal lpProcessAttributes As Integer, 
+												ByVal lpThreadAttributes As Integer, 
+												ByVal bInheritHandles As Integer, 
+												ByVal dwCreationFlags As Integer, 
+												ByVal lpEnvironment As Integer, 
+												ByVal lpCurrentDirectory As Integer, 
+												lpStartupInfo As STARTUPINFO, 
+												lpProcessInformation As PROCESS_INFORMATION) 
+												As Integer
+
+'*****************
+Sub Main
+'*****************
+
+Set Format Date "Local"
+Dim d_now As Date
+Dim t_now As String
+Dim CompletedTime As String
+		
+Dim EmailFrom As String
+Dim EmailTo As String
+Dim EmailSub As String
+Dim EmailTex As String
+Dim EmailAtt As String
+Dim ScriptPath As String
+Dim VbScript As String
+Dim VbSName As String
+Dim RCmd As String		
+		
+d_now = CurDate( )
+t_now = Time(24)
+CompletedTime = d_now 
+CompletedTime = t_now +" on  "+Mid$(CompletedTime,7,2)+"/"+ Mid$(CompletedTime,5,2)+"/"+Mid$(CompletedTime,1,4)	
+	
+	
+ScriptPath = "C:\Temp\EmailConfirmation.vbs" 'Temporary Storage of vbs scritp to run
+EmailFrom = "john.a.worrall@tmr.qld.gov.au"
+EmailTo =  "john.a.worrall@tmr.qld.gov.au" 'To include multiple reciptants use ; e.g john.a.worrall@tmr.qld.gov.au ; richard.t.j@tmr.qld.gov.au 
+EmailSub = "Processing Succesful "+CompletedTime
+EmailTex = "The log file is attached"
+EmailAtt = "C:\a.jpg" 'Uncomment and add path to include attachment
+
+VbScript =		"Dim objEmail" + chr$(13)+
+				"Set objEmail = CreateObject("+chr$(34)+"CDO.Message"+chr$(34)+")"+ chr$(13)+
+				"objEmail.From = "+chr$(34)+EmailFrom+chr$(34)+chr$(13)+
+				"objEmail.To = "+chr$(34)+EmailTo+chr$(34)+chr$(13)+
+				"objEmail.Subject = "+chr$(34)+EmailSub+chr$(34)+chr$(13)+
+				"objEmail.Textbody = "+chr$(34)+EmailTex+chr$(34)+chr$(13)
+				
+				If EmailAtt = "" Then ' Don't include attachment
+					VbScript = VbScript+"'objEmail.AddAttachment "+chr$(34)+EmailAtt+chr$(34)+chr$(13)+chr$(13)
+				Else 'Include attachment
+					VbScript = VbScript+"objEmail.AddAttachment "+chr$(34)+EmailAtt+chr$(34)+chr$(13)+chr$(13)
+				End If
+				
+				VbScript=VbScript+
+				"objEmail.Configuration.Fields.Item _ "+chr$(13)+
+				"	("+chr$(34)+"http://schemas.microsoft.com/cdo/configuration/sendusing"+chr$(34)+") = 2"+ chr$(13)+
+				"objEmail.Configuration.Fields.Item _ "+chr$(13)+
+				"	("+chr$(34)+"http://schemas.microsoft.com/cdo/configuration/smtpserver"+chr$(34)+") = _"+ chr$(13)+
+				"	"+chr$(34)+"mailhub"+chr$(34)+chr$(13)+
+				"objEmail.Configuration.Fields.Item _ "+chr$(13)+
+				"	("+chr$(34)+"http://schemas.microsoft.com/cdo/configuration/smtpserverport"+chr$(34)+") = _"+ chr$(13)+
+				"objEmail.Configuration.Fields.Update"+chr$(13)+chr$(13)+
+				"objEmail.Send"+chr$(13)+
+				"Set objEmail =Nothing"
+
+Open File ScriptPath for Output As #1
+Print #1, VbScript
+Close file 1
+
+RCmd = "CScript.exe "+ScriptPath
+Call ExecuteAndWait(RCmd)
+
+If FileExists(ScriptPath)  Then
+Kill ScriptPath
+End If
+Print Chr$(12)
+End Sub
+
+
+'*****************
+Sub ExecuteAndWait(ByVal cmdLine As String)
+'*****************
+
+    Dim NameOfProc As PROCESS_INFORMATION, NameStart As STARTUPINFO,X As Integer
+
+    NameStart.cb = 256
+    Print CreateProcessA(0, cmdLine, 0, 0, 1, NORMAL_PRIORITY_CLASS, 0, 0,NameStart, NameOfProc)
+    print NameOfProc.hProcess
+    Print WaitForSingleObject(NameOfProc.hProcess, INFINITE)
+    Print CloseHandle(NameOfProc.hProcess)
+End Sub

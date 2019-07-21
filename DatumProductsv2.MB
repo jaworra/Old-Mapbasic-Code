@@ -1,0 +1,89 @@
+' Program to separte Datum products into regions to distribute
+' Programmer: John Worall
+' Date:             09/01/2012
+' Description:    Program to separte Datum products into regions to distribute
+' To Add: Count coloumn in intersect table and then run sql based on number of columns - Less likely to produce error with table schemes changing - Also avoid > 1000 char limit in Select input
+' Requirments : Boundaries objects split into below tables under specified locations. 
+' Requirments : Tables to be open in mapper...
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+Declare Sub Main
+
+Sub Main
+
+Dim CutterTbl,DistName,out_dir As String
+Dim SelectObj,SelecObjBuffer As Object
+Dim BufferDist As Integer
+
+out_dir = "E:\DatumProducts\NEW\"
+BufferDist=100000
+Print Chr$(12)
+
+OnError GoTo tblOpenAlready 
+CutterTbl=FileOpenDlg("L:\spatialData\boundaries\mainRoads", "", "TAB", "Select District Boundaries")
+Open Table CutterTbl As CutTbl
+OnError GoTo 0
+
+Fetch First From CutTbl
+Do While Not EOT(CutTbl)
+	SelectObj=CutTbl.obj
+	DistName=CutTbl.Col2
+	SelecObjBuffer=Buffer(SelectObj,12,BufferDist,"m")
+
+	' ---------------------------------------Run intersect command of Regional Areas for AHD Section---------------------------------------
+	Select * From AHD_Sections where AHD_Sections.obj intersects SelectObj Into Sel_Test Browse * from Sel_Test
+	Commit Table Sel_TEST
+	As out_dir+"AHD_Sections_" & DistName
+	
+	
+	' ---------------------------------------Run intersect command of Regional Areas for QEHA Measurements----------------------------------
+	Select * From QEHA_Measurements where QEHA_Measurements.obj intersects SelectObj Into Sel_Test Browse * from Sel_Test
+	Commit Table Sel_TEST
+	As out_dir+"QEHA_Measurements_" & DistName
+
+	' ---------------------------------------GNSSBaseline ----------------------------------
+	Select * From GNSSBaseline where GNSSBaseline.obj intersects SelectObj Into Sel_Test Browse * from Sel_Test
+	Commit Table Sel_TEST
+	As out_dir+"GNSSBaseline_" & DistName
+
+
+'100km buffer analysis
+	' ---------------------------------------AHD
+	Select * From AHD where AHD.obj intersects SelecObjBuffer Into Sel_Test Browse * from Sel_Test
+	Commit Table Sel_TEST
+	As out_dir+"AHD_" & DistName	
+
+	' ---------------------------------------AHD_Supp
+	Select * From AHD_Supp where AHD_Supp.obj intersects SelecObjBuffer Into Sel_Test Browse * from Sel_Test
+	Commit Table Sel_TEST
+	As out_dir+"AHD_Supp_" & DistName	
+
+	' ---------------------------------------AHD_JPs
+	Select * From AHD_JPs where AHD_JPs.obj intersects SelecObjBuffer Into Sel_Test Browse * from Sel_Test
+	Commit Table Sel_TEST
+	As out_dir+"AHD_JPs_" & DistName	
+
+	' ---------------------------------------Nodes
+	Select * From Nodes where Nodes.obj intersects SelecObjBuffer Into Sel_Test Browse * from Sel_Test
+	Commit Table Sel_TEST
+	As out_dir+"Nodes_" & DistName	
+		
+	Print DistName	
+	'Exit Sub
+	Fetch Next From CutTbl
+Loop
+Print "--------------------------------------------------------------------------------------------------------------------"
+Print "Succesfully Finished"
+Print "--------------------------------------------------------------------------------------------------------------------"
+Exit sub
+
+
+tblOpenAlready:
+Print "Close Table: "& CutterTbl
+Exit Sub
+
+
+End Sub

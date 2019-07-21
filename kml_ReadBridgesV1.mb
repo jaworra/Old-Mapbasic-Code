@@ -1,0 +1,138 @@
+' Programmer: John Worall
+' Date:            06/06/2013
+' Description:     Reads KML file for Bridge location identification
+' Bugs/Updates Required: 
+
+'Sample Structure XML 
+'<Placemark>
+'		<name>Steel Bridge (AR 0.580 km)</name>
+'		<description>Type - Steel
+'
+'Location - 0.580 km
+'
+'Length -  63 metres</description>
+'		<LookAt>
+'			<longitude>153.0279957975252</longitude>
+'			<latitude>-27.56151511990557</latitude>
+'			<altitude>0</altitude>
+'			<heading>0.004025502773274116</heading>
+'			<tilt>0</tilt>
+'			<range>275.487796860324</range>
+'			<altitudeMode>relativeToGround</altitudeMode>
+'			<gx:altitudeMode>relativeToSeaFloor</gx:altitudeMode>
+'		</LookAt>
+'		<styleUrl>#msn_ylw-pushpin0</styleUrl>
+'		<Point>
+'			<altitudeMode>absolute</altitudeMode>
+'			<coordinates>153.0280576320454,-27.56200878656702,9.817140775289973</coordinates>
+'		</Point>
+'	</Placemark>
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+
+Declare Sub Main
+
+Sub Main
+Dim pln As Object
+Dim ln,TableName,InputCord,fileName As String
+Dim Xl,Yl As Float
+Dim Zh As String 
+Dim NumPt,SpacePos,SpacePos1 As Integer
+
+Print Chr$(12)
+close all
+fileName = FileOpenDlg("C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\Deliverables\20131202\Working\LinesSplit\LvlXing", "", "*.KML", "open KML file")
+If fileName = "" Then
+	Exit Sub
+End If
+Open File fileName For Input As 1
+TableName = PathToTableName$(fileName)
+
+Create Table TableName 
+	(Struct_Name Char(100),Struct_Description Char(254))
+Create Map For TableName
+Map From TableName 
+Set Map CoordSys Earth Projection 1,104  ' Sets projection WGS84
+
+'Initialise Variables
+NumPt = 1
+Create Pline Into Variable pln 0
+
+Dim keyWord,name,descripStr,tempStr As String
+Dim foundKeyWord,closeKeyWord As Integer
+Dim long,lat As Float
+Dim startReading,pointRead,description As Logical
+Dim pointObj as Object
+
+startReading = False
+pointRead = False
+description = False
+
+Do While Not EOF(1)
+	Line Input #1, ln
+
+	If InStr(1,ln,"<Placemark id") > 0 Then 
+		startReading = True
+	ElseIf InStr(1,ln,"</Placemark>") > 0 and startReading = True Then
+		startReading = False
+		print "Point Created...."
+		print "	-   Name: "+name
+		print " -   Description: "+descripStr
+		print " -   Longitude: "+long 
+		print " -   Latitude: "+lat 
+		Create Point Into Variable pointObj(long,lat)
+
+		Insert Into TableName (obj, Struct_Name,Struct_Description)
+			Values(CreatePoint(long,lat),name,descripStr)
+	End If
+	
+	If startReading = True Then
+	
+		'Name Assignment
+		If InStr(1,ln,"<name>") > 0 Then
+			name = Mid$(ln,InStr(1,ln,">")+1, InStr(1,ln,"/") - InStr(1,ln,">")-2)
+		End If
+	
+		'Description Assignment
+		If InStr(1,ln,"</description>") > 0 Then
+			description = False
+			tempStr = Mid$(ln,1, InStr(1,ln,"<")-1)
+			If tempStr <> "" Then
+				descripStr = descripStr+"|"+tempStr 
+			End If
+		End If	
+		
+		If InStr(1,ln,"<description>") > 0 or description = True Then
+			description = True
+			If InStr(1,ln,"<description>") > 0 then
+				descripStr =  Mid$(ln,InStr(1,ln,">")+1, Len(ln) - InStr(1,ln,">"))
+			Else
+				If ln <> "" Then
+					descripStr = descripStr+"|"+ ln
+				End If
+			End If
+		End If
+		
+		'Coordinate Extraction
+		If InStr(1,ln,"<Point>") > 0 Then
+			pointRead = True
+		ElseIf InStr(1,ln,"</Point>") > 0 Then
+			pointRead = False
+		End If
+		
+		If pointRead  = True Then
+			If InStr(1,ln,"<coordinates>") > 0 Then
+				 long = Mid$(ln,InStr(1,ln,">")+1, Len(ln) - InStr(1,ln,","))
+				 lat = Mid$(ln,InStr(1,ln,",")+1, Len(ln) - InStr(1,ln,"<"))			 				 
+			End If
+		End If
+	End If
+	
+Loop
+	Commit table TableName 
+	Set Map Zoom Entire Layer TableName
+	Set map redraw on
+End Sub

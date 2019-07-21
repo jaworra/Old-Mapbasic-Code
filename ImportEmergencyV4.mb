@@ -1,0 +1,251 @@
+' Program to combine EV TAB dataset by Property ID
+' Date:             20/12/2013
+' Description:    iterates rows and thematic and generates pollines
+' To Add:
+' Requirments : 
+' Updated in v3 - GUI added process.
+
+Include "mapbasic.def"
+Declare Sub Main
+
+Sub Main
+print chr$(12)
+Close all
+
+'Create DSN
+'Connect to ODBC
+'Select tables and save out...
+
+
+
+
+'Exit sub
+
+Dim bufferDistance,StartTimer  As Integer
+Dim orgEVPath,LogFile As String
+Dim StartTime As Time
+Dim StartDate As Date
+Dim StartDT As datetime
+'Initialise Time
+StartTimer = Timer()
+StartTime = Time (24)
+StartDate = CurDate()
+StartDT = MakeDateTime(StartDate,StartTime)
+
+orgEVPath=FileOpenDlg("C:\TEMP\Temp","","TAB","Select Emergency Vehicle DATASET")
+LogFile="C:\TEMP\QAQC.log"
+
+If orgEVPath = "" Then
+	Print "operation cancelled"
+	Exit Sub
+End If
+
+'Check file exists and delete
+If fileExists("C:\TEMP\copyEVTable.TAB")then
+	Open Table "C:\TEMP\copyEVTable.TAB" as DeleteMe
+	Drop Table DeleteMe
+End If
+
+If fileExists("C:\TEMP\EVMovementTable.TAB")then
+	Open Table "C:\TEMP\EVMovementTable.TAB" as DeleteMe
+	Drop Table DeleteMe
+End If
+
+If fileExists(LogFile)then
+	Kill LogFile
+End If
+
+'Save to local drive and open
+Print "Cache datasets locally...."
+Open Table orgEVPath As EVOrg
+Commit Table EVOrg As "C:\TEMP\copyEVTable.TAB"
+Open Table "C:\TEMP\copyEVTable.TAB" as EVCopy
+
+'FinalTble
+Commit Table EVOrg as "C:\TEMP\EVMovementTable.TAB"
+Open Table "C:\TEMP\EVMovementTable.TAB" as EVMovementTable
+Close Table EVOrg
+
+'Exit sub
+'Goto SecondPart
+
+'OnError Goto UpdateTblError
+'Open File LogFile
+'For Output As #1
+'Print #1, "-----  Processing QAQC EV Commenced  ----- "
+'Print #1, "## "+FormatDate$(GetDate(StartDate))+" "+FormatTime$(GetTime(StartTime), "hh:mm:ss.fff tt")
+'Print #1, "## DEBUGGING" 
+'Print #1, ""
+
+'Combine columns (take out line not requied i.e _L and _R)-> Future works users selects column
+Print "Indetifying records with the same location...."
+Dim ColumnSelect As Float'String
+Dim Plan,CmbLot As String
+Dim lot,i,j,rowCount As Integer
+
+Dim MasterID,RowCountId,RowCountIdCord As Integer
+Dim CoordMatch As String
+Dim RadiusTheme As Integer
+Dim PointObj,BufferObj As Object 
+
+'DEBUGGING SECTION
+'Goto CreateLineSec
+Set Table EVCopy FastEdit On Undo Off
+j=0
+rowCount=Tableinfo(EVMovementTable,TAB_INFO_NROWS)
+'New table to place results
+Create Table ThematicGPS_MatchCORD (MASTER_ID Char(30),NUM_REC Integer) 
+Create Map For ThematicGPS_MatchCORD
+Create Table ThematicGPS_MatchCORDID (MASTER_ID Char(30),NUM_REC Integer) 
+Create Map For ThematicGPS_MatchCORDID
+
+Map From ThematicGPS_MatchCORD,ThematicGPS_MatchCORDID
+Set Map CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000
+Set Map XY Units "m"
+
+'Two loops - first loop process all reconds - second loop process per master id
+Fetch First From EVCopy
+Do While Not EOT(EVCopy)
+	j=j+1
+	i=i+1
+	MasterID=EVCopy.Col12
+	CoordMatch=EVCopy.Col8
+	PointObj=EVCopy.obj
+	
+	Run Command "Select * from "+EVCopy+" where Location = "+chr$(34)+CoordMatch+chr$(34)+" into MatchCord"'noselect" 'Select all conicident records
+	RowCountId=TableInfo(MatchCord,TAB_INFO_NROWS) 
+	Run Command "Select * from "+EVCopy+" where Master_Incident_ID = "+MasterID+" and Location ="+chr$(34)+CoordMatch+chr$(34)+" into MatchCordID"'noselect" 'Select all conicident records
+	RowCountIdCord=TableInfo(MatchCordID,TAB_INFO_NROWS) 
+
+	If RowCountId > 1 then
+		Select * from MatchCord into Selection
+		Create Object as Buffer From Selection Into Table ThematicGPS_MatchCORD Data MASTER_ID=MasterID,NUM_REC=RowCountId Width RowCountId*10/2 Units "m" Resolution 60
+
+	End If
+	If RowCountIdCord > 1 then
+		Select * from MatchCordID into Selection
+		Create Object as Buffer From Selection Into Table ThematicGPS_MatchCORDID Data MASTER_ID=MasterID,NUM_REC=RowCountIdCord Width RowCountIdCord*10/2 Units "m" Resolution 60
+	End If
+	Delete from MatchCordID
+	If j>100 Then'Speed up??
+		j=0
+		Commit Table EVCopy
+		Pack Table EVCopy Graphic Data
+		Print "Percent Completed: "+Format$((i/rowCount)*100,"#.##\%")
+		Commit Table ThematicGPS_MatchCORDID
+		Commit Table ThematicGPS_MatchCORD
+	End If
+	Fetch First from EVCopy
+Loop
+Drop Table EVCopy
+
+'Exit sub
+
+CreateLineSec:
+Print "Creating Routes...."
+'SecondPart:
+Create Table EV_Movement (MASTER_ID Integer, Vehicle_ID Integer, Date_ Char(10)) 
+Create Map For EV_Movement
+
+Dim PolylineObj As Object
+Dim Loopi,Loopj As Integer
+dim fX, fY as Float
+Dim MasterID2,VehicleID,NoVehicle_ID As Integer   '**** TAKE THIS OUT
+Dim VehicleIDAr(10) As Integer
+Dim DateAtt As String
+
+j=0
+
+Fetch First From EVMovementTable
+Do While Not EOT(EVMovementTable)
+	j=j+1
+	MasterID2=EVMovementTable.Col12
+	'Two loops in here - > 1) loop by vehicle ID    2) loop by record to input polyline
+	
+	Run Command "Select * from "+EVMovementTable+" where Master_Incident_ID = "+MasterID2+" group by Vehicle_ID into GroupByVeh"
+	NoVehicle_ID=Tableinfo(GroupByVeh,TAB_INFO_NROWS)
+	'print "number or rows: "+NoVehicle_ID
+	
+	'Set array - used to separate 
+	ReDim VehicleIDAr(NoVehicle_ID)
+	For i=1 to NoVehicle_ID 
+		Run Command "Select * from GroupByVeh where rowID = "+i+" into TEST4"
+		VehicleIDAr(i)=TEST4.Col2
+		'Print "VehicleArray: "+VehicleIDAr(i)
+	Next
+
+	For i=1 to NoVehicle_ID
+		Run Command "Select * from "+EVMovementTable+" where Master_Incident_ID = "+MasterID2+" and Vehicle_ID = "+VehicleIDAr(i)+" group by Date_Time into SameDay"'noselect" 'Select all conicident records
+		
+		
+		If Tableinfo(SameDay,TAB_INFO_NROWS)>1 Then	'Multiple Days
+			
+			'For loop in here
+			'Print "Over two days"
+			For Loopj=1 to Tableinfo(SameDay,TAB_INFO_NROWS)
+				'Select the first record 
+				Run Command "Select * from "+EVMovementTable+" where Master_Incident_ID = "+MasterID2+" and Vehicle_ID = "+VehicleIDAr(i)+" order by Time into AllDayePolyline"'noselect" 'Select all conicident records
+				Fetch First from AllDayePolyline
+				DateAtt=AllDayePolyline.Date_Time
+'				Print DateAtt
+'				Print MasterID2
+'				Print EVMovementTable
+'				Print VehicleIDAr(i)
+				Run Command "Select * from "+EVMovementTable+" where Master_Incident_ID = "+MasterID2+" and Vehicle_ID = "+VehicleIDAr(i)+" and Date_Time = "+chr$(34)+DateAtt+chr$(34)+" order by Time into CreatePolyline"'noselect" 'Select all conicident records
+			
+				Create Pline into Variable PolylineObj 0
+				
+				For Loopi=1 to TableInfo(CreatePolyline, TAB_INFO_NROWS)
+					'print TableInfo(CreatePolyline, TAB_INFO_NROWS) +"   number of records"	
+					Fetch rec Loopi from CreatePolyline
+					fX=CreatePolyline.X
+					fY=CreatePolyline.Y
+					'print CreatePolyline.Time+"  time"
+					Alter Object PolylineObj Node Add (fX, fY)	
+				Next	
+				Insert into EV_Movement (MASTER_ID,Vehicle_ID,Date_,obj) Values (MasterID2,VehicleIDAr(i),DateAtt,PolylineObj)
+				'Exit sub
+				
+				Delete from CreatePolyline
+				Close Table CreatePolyline
+				Commit Table EVMovementTable
+				Pack Table EVMovementTable  Graphic Data							
+				'Do I create a new records here or a multi polylines
+			Next
+			
+			'Exit Sub
+		
+		Else	'One Day   
+			Run Command "Select * from "+EVMovementTable+" where Master_Incident_ID = "+MasterID2+" and Vehicle_ID = "+VehicleIDAr(i)+" order by Time into CreatePolyline"'noselect" 'Select all conicident records
+			DateAtt=CreatePolyline.Date_Time
+			Create Pline into Variable PolylineObj 0
+						
+			For Loopi=1 to TableInfo(CreatePolyline, TAB_INFO_NROWS)
+				'print TableInfo(CreatePolyline, TAB_INFO_NROWS) +"   number of records"	
+				Fetch rec Loopi from CreatePolyline
+				fX=CreatePolyline.X
+				fY=CreatePolyline.Y
+				'print CreatePolyline.Time+"  time"
+				Alter Object PolylineObj Node Add (fX, fY)	
+			Next
+			
+		Insert into EV_Movement (MASTER_ID,Vehicle_ID,Date_,obj) Values (MasterID2,VehicleIDAr(i),DateAtt,PolylineObj)
+		
+		Delete from CreatePolyline
+		Close Table CreatePolyline
+		Commit Table EVMovementTable
+		Pack Table EVMovementTable  Graphic Data			
+		End If
+	Next 
+
+'	If j=50 Then
+'		Exit sub
+'	End If
+
+Fetch First from EVMovementTable
+Loop
+Drop Table EVMovementTable
+Commit Table EV_Movement 
+
+End Sub
+

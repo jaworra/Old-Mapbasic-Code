@@ -1,0 +1,60 @@
+
+include "MAPBASIC.DEF"
+include "ICONS.DEF"
+
+Declare Sub Main
+Declare Sub joinPoints
+
+Sub Main
+
+Create ButtonPad "Join" As PushButton Calling joinPoints Icon MI_ICON_POLYLINE
+
+End Sub
+
+
+Sub joinPoints
+
+Dim pointsTable As String
+Dim tblName As String
+
+pointsTable = FileOpenDlg("","","TAB","Open Table")
+If pointsTable <> "" Then
+
+	Open Table pointsTable
+
+	tblName = PathToTableName$(pointsTable)
+	Commit Table tblName As "C:\tmpPointsTable.TAB"
+	Open Table "C:\tmpPointsTable.TAB" As tblPoints
+
+	Run Command "Set " & TableInfo(tblName, TAB_INFO_COORDSYS_CLAUSE)
+
+	Dim polyLine As Object
+	Create Pline Into Variable polyLine
+		0
+		Pen MakePen(2, 2, RGB(0, 128, 0))
+
+	Dim numPoints As Integer
+	numPoints=0
+	Fetch First From tblPoints
+	Do While Not EOT(tblPoints)
+		numPoints = numPoints + 1
+		Alter Object polyLine
+			Node Add (tblPoints.Long, tblPoints.Lat)
+		Print Str$(numPoints) & ": " & Str$(tblPoints.Long) & ", " & Str$(tblPoints.Lat)
+		Fetch Next From tblPoints
+	Loop
+
+	If NumWindows() = 0 Then
+		Map From tblName
+	End If
+
+	Insert Into WindowInfo(WindowID(FrontWindow()), WIN_INFO_TABLE)
+		(Obj)
+		Values (polyLine)
+
+	Drop Table tblPoints
+
+End If
+
+End Sub
+

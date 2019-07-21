@@ -1,0 +1,31 @@
+
+'include "mapbasic.def"
+Declare Sub Main
+
+Declare Function SHCreateDirectoryEx Lib "shell32.dll" Alias 
+"SHCreateDirectoryExA" (ByVal hwnd as integer, Byval LPCWSTR as string, 
+ByVal
+SecurityAttributes as Integer) As integer
+
+Sub Main
+
+
+Print chr$(12)
+
+'-------MapBasic Solution + API
+If Right$((GetFolderPath$(-2)), 5) <> "\1151\" Then
+	Dim createDirectory as String
+	Dim err as integer
+	createDirectory = GetFolderPath$(-3)+"Professional\1151"
+	err = SHCreateDirectoryEx(0,createDirectory,0)
+End If
+Exit sub
+
+'-------CMD Solution 
+Run Program "CMD.EXE /c echo "+ "%username% > C:\DOCUME~1\%username%\Applic~1\Mapinfo\Mapinfo\Professional\1151\done.d"  
+	If Not FileExists(GetFolderPath$(-3) +"Professional\1151\done.d") Then
+	Run Program "CMD.EXE /c mkdir C:\DOCUME~1\%username%\Applic~1\Mapinfo\Mapinfo\Professional\1151"
+	End If 
+Run Program "CMD.EXE /c erase C:\DOCUME~1\%username%\Applic~1\Mapinfo\Mapinfo\Professional\1151\done.d"
+Exit Sub
+End Sub

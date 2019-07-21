@@ -1,0 +1,854 @@
+'======================================================================================================================='
+' Programmer:       John Worrall																									'
+' Created:          26/04/2012																										'
+' Last Update:      26/04/2012																										'
+' Version:          1.0																												'	
+' Description:    																													'
+'  - Providing functionality within Mapinfo for Live DBMS feed to Asset Master												'
+' Furture Works -  Move Global variables to Def file																			'																							'
+'               -   								 																				   	'
+' Bugs - ^^ symbol for bugs		 																									
+'======================================================================================================================='
+'Library
+'*********************************************************************************************
+Include "mapbasic.def"
+Include "icons.def"
+Include "Menu.def" ' -> not needed?
+
+Declare SUB Main
+Declare SUB MainDialog 'Creates main dialog
+Declare SUB RegionWorkSpace(byval RegionName As String, byval LocationX As Float, LocationY As Float)' Opens predefined workspace
+Declare SUB AdditionTools
+
+Declare SUB OkHandler
+
+Declare SUB SQLQryFunction
+Declare SUB InfoFunction
+Declare SUB IconFunction
+Declare SUB FlagFunction
+Declare SUB PrintFunction
+
+'---------------------------------------------------------
+'Global Variables
+Global DisclaimerStr,UpdateDate,AppName,AppVersion,WorkingUnit,Department,DepartmentAco,LocationUnit,WritternBy As String
+Global AccesAssetMaster,y,w As Integer
+Global RegionName As String
+Global OdbcTablesA(1),OdbcMapTablesA(1),ChosenAsset(1),ChosenAssetMap(1) As String
+
+
+'----------------------------------------------------------
+Sub  SQLQryFunction
+Print "SQL"
+
+
+Dim UserListQry,UserRadQry As SmallInt
+Dim DatesFrom, DatesTo As String'Date
+Dim SQLString As String 
+
+
+	Dialog
+		Title "Query Menu" 
+		
+	Control StaticText
+		Title "Choose Asset Layer:"
+		Position 5,10
+	
+	Control ListBox
+		Title From Variable ChosenAssetMap
+		Into UserListQry
+		Position 10,25
+		Height 90
+		Width 100
+
+	Control StaticText
+		Title "Installed Dates:"
+		Position 240,10
+
+	Control StaticText
+		Title "to"
+		Position 263,32
+
+	Control EditText
+		Into DatesFrom
+		Position 200,30
+		Width 55
+
+	Control EditText
+		Into DatesTo
+		Position 280,30
+		Width 55
+
+	Control RadioGroup
+		Title "&Dates;&Location"
+		Position 135,0
+		Into UserRadQry
+		Height 50
+
+	Control StaticText
+		Title "Name of Street or Suburb"
+		Position 220,60
+
+	Control EditText
+'		Title ""
+		Position 200,80
+		Width 120
+		Into SQLString
+
+	Control OkButton
+		Position 235,115
+
+	Control CancelButton
+		Position 280,115
+
+If CommandInfo(CMD_INFO_DLG_OK)Then
+
+
+
+	If UserRadQry = 1 Then 
+	Print DatesFrom +"Dates From"
+	Print DatesTo +"Dates to"
+
+	
+	End If	
+
+	If UserRadQry = 2 Then
+
+	Print SQLString + "SQL"
+
+	End If
+
+Print "-=-=-===-=-=-=-=-=-=-=-=-=-="
+Print UserListQry
+Print SQLString
+
+
+End If
+
+
+
+
+End Sub
+
+'----------------------------------------------------------
+
+
+Sub  FlagFunction
+'Print "FLAG"
+
+
+
+End Sub
+
+
+'----------------------------------------------------------
+Sub  PrintFunction
+Print "PRINT"
+
+End Sub
+'------------------------------------------------------------------------------
+SUB AdditionTools
+' GUI Interface for functionality and better usibility for end user
+
+Create ButtonPad "Add Functions" As
+	PushButton
+		'ID 1
+		HelpMsg "Choose this button to display query dialog"
+		Icon MI_ICON_ZOOM_QUESTION
+		Calling SQLQryFunction
+	PushButton
+		'ID 2
+		HelpMsg "Choose this button to display query dialog"
+		Icon MI_ICON_ZOOM_QUESTION
+		Calling InfoFunction
+	PushButton
+		'ID 2
+		HelpMsg "Choose this button to display query dialog"
+		Icon MI_ICON_ZOOM_QUESTION
+		Calling IconFunction
+	ToggleButton
+		'ID 3
+		HelpMsg "Choose this button to display query dialog"
+		Icon MI_ICON_ZOOM_QUESTION
+		Calling FlagFunction
+	PushButton
+		'ID 2
+		HelpMsg "Choose this button to display query dialog"
+		Icon MI_ICON_ZOOM_QUESTION
+		Calling PrintFunction
+	Title "AM Functions"
+	Width 10
+	Show
+	Float
+
+End SUB
+
+'------------------------------------------------------------------------------
+SUB Main
+
+	Print Chr$(12) ' Clear message window
+	Close All Interactive
+	Set ProgressBars Off
+	
+	Dim StartTime, ElapsedTime As integer
+	StartTime = Timer()
+
+	'Initilisation of Global variables
+	AppVersion = "May 2012"
+	UpdateDate = AppVersion
+	WorkingUnit= "Geospatial Technologies"
+	AppName = "Asset Manager Tool"
+	Department= "Department of Tranport and Main Roads"
+	DepartmentAco = "DTMR"
+	LocationUnit="Flr 6,Spring Hill Complex"
+	WritternBy = "JAW"
+	DisclaimerStr = "The State of Queensland through the Department of Transport and Main Roads(DTMR)"+Chr$(10)+"is the owner of the Intellectual Property Rights in and to the information supplied. "+Chr$(10)+"Except for purposes permitted by the Copyright Act, reproduction by whatever means is prohibited without the prior written permission of the Department of Transport and Main Roads."
+	AccesAssetMaster =0
+
+	'Call MainDialog
+	Call AdditionTools
+
+	ElapsedTime = Timer()-StartTime
+	Print "Time Taken: " + ElapsedTime
+
+END SUB
+
+'------------------------------------------------------------------------------------------------
+'	SUBROUTINES
+'------------------------------------------------------------------------------------------------
+
+SUB MainDialog
+
+'Main Menu, prompting user for Region and Asset of interest. Generates Map based on input
+
+'Initialise Connection Variables
+	Dim DsnCon,UserCon,PassCon As String 
+	DsnCon = "AssetMaster"
+	UserCon = "TMRAMREP"
+	PassCon = "R3pNPr0d"
+
+'Checking ODBC drivers on local HD
+	If Server_NumDrivers()=0 Then
+		Note "Please install ODBC support for this version of Mapinfo"
+		End Program
+	End if
+
+'Registering ODBC Connection
+	If AccesAssetMaster = 0 Then
+		'AccesAssetMaster = Server_Connect("ODBC","DSN=AssetMaster;UID=TMRAMREP;PWD=R3pNPr0d")		
+		AccesAssetMaster = Server_Connect("ODBC","DSN="& DsnCon &";UID="& UserCon &";PWD="& PassCon)
+		Note "Connection to Asset Maseter Successful  (Connection Ref Number: " + AccesAssetMaster + ")"	
+	Else Note "You are already connected to Asset Master"  
+	End If
+	
+		'Server Connnection Strings
+		'AccesAssetMaster = Server_Connect("ODBC","DSN="& DsnCon &";UID="& UserCon &";PWD="& PassCon)
+		'AccesAssetMaster = Server_Connect("ODBC","DSN=AssetMaster;UID=TMRAMREP;PWD=R3pNPr0d;DRIVER=SQL Server;APP=MapInfo Professional®;SERVER=MRDMSM04.npresources.nptmr.local;WSID=CD10300117;")		
+		'AccesAssetMaster = Server_Connect("ODBC","DSN=AssetMaster;UID=TMRAMREP;PWD=R3pNPr0d;DATABASE=ams_Dev;Trusted_Connection=no;APP=MapInfo Professional®;SERVER=MRDMSM04.npresources.nptmr.local;WSID=CD10300117;")	'DLG=1;
+		'AccesAssetMaster = Server_Connect("ODBC","SERVER=MRDMSM04.npresources.nptmr.local;DSN=AssetMaster").
+		'AccesAssetMaster = Server_Connect("ODBC","DSN=AssetMaster;UID=TMRAMREP;PWD=R3pNPr0d")
+		'AccesAssetMaster = Server_Connect("ODBC","SERVER=MRDMSM04.npresources.nptmr.local;UID=TMRAMREP;PWD=R3pNPr0d")
+
+'Output ODBC connection infomation
+		Print "-------------ODBC Connect Info------------------------------"
+		Print Server_GetODBCHConn(AccesAssetMaster) 
+		Print Server_ConnectInfo(AccesAssetMaster, SRV_CONNECT_INFO_DB_NAME)
+		Print Server_ConnectInfo(AccesAssetMaster, SRV_CONNECT_INFO_DS_NAME)
+		Print Server_ConnectInfo(AccesAssetMaster, SRV_CONNECT_INFO_DRIVER_NAME)
+		Print Server_DriverInfo(1,SRV_DRV_INFO_NAME_LIST)
+		Print "------------------------------------------------------------"		
+			 'Sample output 108412800 Microsoft SQL Server AssetMaster ODBC ODBC;ORAINET
+	
+'Set ODBC Tables into Array
+		Dim ServerExe,h,g As Integer
+		ServerExe = Server_Execute(AccesAssetMaster, "Select * from information_schema.tables order by TABLE_NAME")
+		Server ServerExe Fetch Into "OdbcTables" 	
+		Server ServerExe Close 
+		h = TableInfo("OdbcTables",TAB_INFO_NROWS)
+
+		ReDim OdbcTablesA(h) 
+			
+			g = 0
+			Fetch First from OdbcTables
+			Do While Not EOT(OdbcTables)	
+			g = g+1
+			Fetch Next From OdbcTables
+			OdbcTablesA(g) = OdbcTables.Table_Name
+			Loop
+			Close Table OdbcTables
+
+'Set Mappable Tables into Array
+			' Serach through all tables for column name LONG and LAT  
+
+			Dim ServerExeM,m,l As Integer
+			ServerExeM = Server_Execute(AccesAssetMaster, "Select * from information_schema.columns where COLUMN_NAME like '%long%' order by TABLE_NAME")
+			Server ServerExe Fetch Into "OdbcMapTables"
+			Server ServerExe Close 
+			l = TableInfo("OdbcMapTables",TAB_INFO_NROWS)
+			
+			ReDim OdbcMapTablesA(l)
+			
+				m = 0
+				Fetch First From OdbcMapTables
+				Do While Not EOT(OdbcMapTables)
+				m = m+1
+				Fetch Next From OdbcMapTables
+				OdbcMapTablesA(m) = OdbcMapTables.Table_Name
+				Loop
+				Close Table OdbcMapTables
+
+'Dim OpenOdbcTableA() As String
+'Dim i,j,k as Integer
+
+'j = NumTables() ' Total open tables
+'ReDim OpenTableNs(j) 'Redefinition of Array size
+'k = 1 ' Array counter for imported tables
+
+
+'Parent Menu Dialog	
+	Dim RegionList, AssetList As SmallInt
+	Dim RegionNamePas As String
+	Dialog
+	Title "Asset Master Interface"
+
+	Control GroupBox
+		Title "Menu:"
+		ID 1
+		Position 10,5
+		Width 300
+		Height 220
+
+	Control StaticText
+		Title "Browse Asset of Interest:"
+		ID 2
+		Position 20,20
+
+	Control MultiListBox
+		Title From Variable OdbcTablesA
+		ID 3
+		Into AssetList
+		Position 20,35
+		Width 170
+
+	Control StaticText
+		Title "Map Asset of Interest:"
+		ID 4
+		Position 20,130
+
+	Control MultiListBox
+		Title From Variable OdbcMapTablesA
+		ID 5
+		Into AssetList
+		Position 20,145
+		Width 170
+
+	Control StaticText
+		ID 6
+		Title "Select Region of Interest:"
+		Position 210,20
+	
+	Control PopupMenu
+		ID 7
+		Title "Central West;Darling Downs;Far North;Fitzroy;Metroopolitan;Mackay/Whitsunday;North Coast;Northern;North West;South Coast;South West;Wide Bay/Burnett"
+		Into RegionList
+		Position 210,35
+
+	Control OKButton
+		Position 220,240
+		Calling OkHandler
+
+	Control CancelButton
+		Position 270,240
+
+'Set Location for map to zoom - Major Office Towns
+'Calls Standard Workspace
+
+'Exit Sub
+
+If CommandInfo(CMD_INFO_DLG_OK) Then
+Dim LocationX, LocationY As Float
+
+
+'Open Asset Location in Regional Map
+Do Case RegionList
+	Case 1
+		RegionNamePas = "CWR"
+		LocationX = 145.289008
+		LocationY = -23.553318
+		Call RegionWorkSpace(RegionNamePas,LocationX,LocationY)
+	Case 2
+		RegionNamePas = "DDR"
+		LocationX = 151.955531
+		LocationY = -27.561295
+		Call RegionWorkSpace(RegionNamePas,LocationX,LocationY)
+	Case 3
+		RegionNamePas = "FNR"
+		LocationX = 145.772260
+		LocationY = -16.924567
+		Call RegionWorkSpace(RegionNamePas,LocationX,LocationY)
+	Case 4
+		RegionNamePas = "FTR"
+		LocationX = 150.514629
+		LocationY = -23.380730
+		Call RegionWorkSpace(RegionNamePas,LocationX,LocationY)
+	Case 5
+		RegionNamePas = "MTR"
+
+		LocationX = 153.028266
+		LocationY = -27.468023
+		Call RegionWorkSpace(RegionNamePas,LocationX,LocationY)
+	Case 6
+		RegionNamePas = "MWR"
+		LocationX = 149.186663
+		LocationY = -21.142332
+		Call RegionWorkSpace(RegionNamePas,LocationX,LocationY)
+	Case 7
+		RegionNamePas = "NCR"
+		LocationX = 152.959827
+		LocationY = -26.625959
+		Call RegionWorkSpace(RegionNamePas,LocationX,LocationY)
+	Case 8
+		RegionNamePas = "NTR"
+		LocationX = 146.817073
+		LocationY = -19.260259
+		Call RegionWorkSpace(RegionNamePas,LocationX,LocationY)
+	Case 9
+		RegionNamePas = "NWR"
+		LocationX = 140.505325
+		LocationY = -20.704192
+		Call RegionWorkSpace(RegionNamePas,LocationX,LocationY)
+	Case 10
+		RegionNamePas = "SCR"
+		LocationX = 153.336560
+		LocationY = -27.989302
+		Call RegionWorkSpace(RegionNamePas,LocationX,LocationY)
+	Case 11
+		RegionNamePas = "SWR"
+		LocationX = 148.786693
+		LocationY = -26.573326
+		Call RegionWorkSpace(RegionNamePas,LocationX,LocationY)
+	Case 12
+		RegionNamePas = "WBR"
+		LocationX = 152.348920
+		LocationY = -24.866108
+		Call RegionWorkSpace(RegionNamePas,LocationX,LocationY)
+End Case
+
+Print "--=-==-=-=-=-=-=-=-=-=-="
+
+'OPEN BROWSE TABLE -------------------------------------------------------------------------------------
+'Loop through Selected browse tables
+	Dim f as integer
+	For f = 1 to y
+
+'Browse Link Table
+	Server AccesAssetMaster Link Table
+	"Select * From "+ChosenAsset(f)
+	Into "Linked_"+ChosenAsset(f)
+Next
+
+'Open MAPPABLE TABLES ----------------------------------------------------------------------------
+
+
+'Commit Table to Local Hard Drive, open new version and map(Maps and saves locally only if there is columns "Lat" & "Long")
+
+'Determine total columns then loop for each column for lat/long 'or x/y'
+
+	Dim ColNum,ColCount As Integer
+	Dim ColNam As String
+	Dim CoordBol As Logical
+	Dim z As Integer
+
+'ChosenAssetMap(w)
+
+
+For z=1 to w
+
+	Server AccesAssetMaster Link Table
+	"Select * From "+ChosenAssetMap(z)
+	Into ChosenAssetMap(z)
+'	Into "Mapped_"+ChosenAssetMap(z)
+
+'	Print NumCols(ChosenAssetMap(z))
+'	ColNum = NumCols(ChosenAssetMap(z))  ' Total number of columns
+		
+'		CoordBol = False
+'		For ColCount = 1 to ColNum
+'		Print ColumnInfo(ChosenAssetMap(z),"col"+ColCount,COL_INFO_NAME)
+'		ColNam = ColumnInfo(ChosenAssetMap(z),"col"+ColCount,COL_INFO_NAME)
+'			If there is a "Long" as column name in table then commit table and save map
+'			If ColNam = "Long" Then
+
+					'Commit Table to Local Hard Drive, open new version and map
+					Commit table ChosenAssetMap(z) as "C:\Delete\"+ChosenAssetMap(z)
+					Close table ChosenAssetMap(z)				
+					Open table "C:\Delete\"+ChosenAssetMap(z)
+ 					Create Map For ChosenAssetMap(z) 
+					Set CoordSys Earth Projection 1, 0
+					Set style Symbol(42,0,8,"MapInfo Weather",256,0) ' Set symbol
+					Update ChosenAssetMap(z) ' Creats points here 
+					Set Obj = CreatePoint(Long,Lat)
+					Commit table ChosenAssetMap(z)
+					Add Map Auto layer ChosenAssetMap(z) 
+	
+'			End If
+		Next
+
+Exit sub
+'Browse Link Table
+	Server AccesAssetMaster Link Table
+	"Select * From MRv_MapInfo_Pit"
+	Into "MapInfo_Pits"
+
+'Commit Table to Local Hard Drive, open new version and map
+	Commit table MapInfo_Pits as "C:\TEMP\MapInfo_Pits"
+	Close table MapInfo_Pits
+	Open table "C:\Temp\MapInfo_Pits"
+	Create Map For MapInfo_Pits 
+	Set CoordSys Earth Projection 1, 0
+	Set style Symbol(39,Black,8,"MapInfo Cartographic",256,0) ' Set symbol
+	Update MapInfo_Pits ' Creats points here 
+	Set Obj = CreatePoint(Long,Lat)
+	Add Map Auto layer MapInfo_Pits 
+
+Exit sub
+
+
+'----------------------------------------------------------------------------
+
+'Server Disconnect
+	'Server AccesAssetMaster Disconnect
+
+'Log on once Connected	
+	'AccesAssetMaster = Server_Connect("ODBC","FILEDSN=C:\Program Files\Common Files\ODBC\Data Sources\AssetMaster.dsn;")
+	'AccesAssetMaster = Server_Connect("ODBC","DSN=AssetMaster")
+	
+'Opening Table
+	'Register Table "MRv_MapInfo_Pit"  TYPE ODBC TABLE "Select *  From ""ams_Dev"".""dbo"".""MRv_MapInfo_Pit""" CONNECTION "Description=Testing;DRIVER=SQL Server;SERVER=MRDMSM04.npresources.nptmr.local;UID=TMRAMREP;PWD=R3pNPr0d;APP=MapInfo Professional®" toolkit  "ODBC" Autokey ON Versioned Off Workspace "" ParentWorkspace "" Into "C:\x\MRv_MapInfo_Pit.tab" 
+	'Open Table "C:\x\MRv_MapInfo_Pit.tab" Interactive
+	
+
+	'Documents and Settings\jaworra\My Documents
+	'AccesAssetMaster = Server_Connect("ODBC","DSN=AssetMaster;UID=TMRAMREP;PWD=R3pNPr0d")	
+   '"DSN=MI ACCESS;UID=ADMIN;PWD=SECRET"
+	'R3pNPr0d
+
+     'Server_Execute( )
+	 'Open link table  "ODBC",
+	
+'Dim __ODBC_QUERY__ as String
+'Dim __ODBC_CONSTRING__ as String
+'Dim __ODBC_TOOLKIT__ as String
+'Server Link Table __ODBC_QUERY__ Using __ODBC_CONSTRING__ toolkit __ODBC_TOOLKIT__ Into "MRv_MapInfo_Pit" Autokey ON File "C:\Documents and Settings\jaworra\My Documents\MRv_MapInfo_Pit.TAB"
+'Browse * From MRv_MapInfo_Pit
+
+End If  ' If user enters Cancel Button
+
+END SUB
+
+
+'DSN File
+'-----------
+'[ODBC]
+'DRIVER=SQL Server
+'UID=TMRAMREP
+'WSID=CD10300117
+'APP=MapInfo Professional®
+'SERVER=MRDMSM04.npresources.nptmr.local
+'Description=Testing
+
+'------------------------------------------------------------------------------
+SUB RegionWorkSpace(byval RegionName As String, byval LocationX As Float, LocationY As Float)
+
+' Loads standard local map - Areas datasets and location parse throuh functions arguments
+
+!Workspace
+!Version  950
+!Charset WindowsLatin1
+Open Table "C:\GEO_TEMP\Tbl\water_areas_FTR" As water_areas_FTR Interactive
+Open Table "C:\GEO_TEMP\Tbl\Local_Government_Boundaries" As Local_Government_Boundaries Interactive
+Open Table "C:\GEO_TEMP\Tbl\QldCoastCarto" As QldCoastCarto Interactive
+Open Table "C:\GEO_TEMP\Tbl\sc_roads" As sc_roads Interactive
+Open Table "C:\GEO_TEMP\Tbl\Towndots" As Towndots Interactive
+Map From Towndots,sc_roads,QldCoastCarto,Local_Government_Boundaries,water_areas_FTR 
+  Position (0.0520833,0.0520833) Units "in"
+  Width 4.52083 Units "in" Height 4.52083 Units "in" 
+Set Window FrontWindow() ScrollBars Off Autoscroll On Enhanced On Smooth Image High
+Set Map
+  CoordSys Earth Projection 1, 33
+  Center (153.1147057,-27.51862501)
+  Zoom 32741.12215 Units "m"
+  Preserve Zoom Display Zoom
+  Distance Units "m" Area Units "hectare" XY Units "degree"
+Set Map
+  Layer 1
+    Display Graphic
+    Global Pen (1,2,0) Brush (2,16777215,16777215) Symbol (35,0,12) Line (1,2,0) Font ("Arial",0,9,0)
+    Label Line Arrow Position Right Font ("Arial",0,9,0) Pen (1,2,0) 
+      With TOWN_NAME
+      Parallel On Auto On Overlap Off Duplicates On Offset 2
+      Visibility On
+  Layer 2
+    Display Global
+    Global Pen (1,2,0) Brush (2,16777215,16777215) Symbol (35,0,12) Line (1,2,8421376) Font ("Arial",0,9,0)
+    Label Line Arrow Position Above Font ("Arial",0,9,0) Pen (1,2,0) 
+      With STREET
+      Parallel On Auto Off Overlap Off Duplicates Off Offset 2
+      Visibility On
+  Layer 3
+    Display Graphic
+    Global Pen (1,2,0) Brush (2,16777215,16777215) Symbol (35,0,12) Line (1,2,0) Font ("Arial",0,9,0)
+    Label Line Arrow Position Above Font ("Arial",0,9,0) Pen (1,2,0) 
+      With NAME
+      Parallel On Auto Off Overlap Off Duplicates Off Offset 2
+      Visibility On
+  Layer 4
+    Display Graphic
+    Global Pen (1,2,0) Brush (2,16777215,16777215) Symbol (35,0,12) Line (1,2,0) Font ("Arial",0,9,0)
+    Label Line None Position Center Font ("Arial",0,9,0) Pen (1,2,0) 
+      With name
+      Parallel On Auto Off Overlap Off Duplicates On Offset 2
+      Visibility On
+  Layer 5
+    Display Graphic
+    Global Pen (1,2,0) Brush (2,16777215,16777215) Symbol (35,0,12) Line (1,2,0) Font ("Arial",0,9,0)
+    Label Line None Position Center Font ("Arial",0,9,0) Pen (1,2,0) 
+      With NAME
+      Parallel On Auto Off Overlap Off Duplicates On Offset 2
+      Visibility On
+Set Map Layer 0 Editable
+Set Window FrontWindow() Printer
+ Name "MapInfo PDF Printer Version 10.5" Orientation Portrait Copies 1
+ Papersize 9
+
+
+Exit Sub
+' Loads standard Network map - Areas datasets and location parse throuh functions arguments
+
+Open Table "L:\spatialData\inlandWaters\waterCarto\water_areas_"+RegionName As water_areas_+RegionName Interactive
+Open Table "L:\spatialData\inlandWaters\waterCarto\QldCoastCarto" As QldCoastCarto Interactive
+Open Table "L:\spatialData\transportation\roads\stateControlled\scRoads\sc_roads" As sc_roads Interactive
+Open Table "L:\spatialData\transportation\roads\local\sdrn\"+RegionName+"_RD" As RegionName+_RD Interactive
+Open Table "L:\spatialData\boundaries\lga\Local_Government_Boundaries" As Local_Government_Boundaries Interactive
+Open Table "L:\spatialData\location\townsCarto\Towndots" As Towndots Interactive
+Set Window Info
+  Position (24.3438,9.15625) Units "in"
+  Width 2.21875 Units "in" Height 1.19792 Units "in" 
+  Font ("Arial",0,8,0)
+Open Window Info
+ Map From Towndots,QldCoastCarto,sc_roads,RegionName+_RD,Local_Government_Boundaries,water_areas_+RegionName 
+ Position (0.0208333,0.0208333) Units "in"
+  Width 10.6771 Units "in" Height 8.75 Units "in" 
+Set Window FrontWindow() ScrollBars Off Autoscroll On Snap Mode On Enhanced On Smooth Image High
+Set Map
+  CoordSys Earth Projection 1, 116
+  Center (LocationX,LocationY) ' Center here for display
+  Zoom 588.662129 Units "km"
+  Preserve Zoom Display Zoom
+  Distance Units "km" Area Units "sq km" XY Units "degree"
+Set Map
+  Layer 1
+    Display Graphic
+    Global Pen (1,2,0) Brush (2,16777215,16777215) Symbol (35,0,12) Line (1,2,0) Font ("Arial",0,9,0)
+    Label Line Arrow Position Right Font ("Arial",0,8,0,16777215) Pen (1,2,0) 
+      With TOWN_NAME
+      Parallel On Auto On Overlap Off Duplicates Off Offset 10
+      Visibility On
+  Layer 2
+    Display Graphic
+    Global Pen (1,2,0) Brush (2,16777215,16777215) Symbol (35,0,12) Line (1,2,0) Font ("Arial",0,9,0)
+    Zoom (0, 100) Units "km" Off 
+    Label Line Arrow Position Above Font ("Arial",0,9,0) Pen (1,2,0) 
+      With NAME
+      Parallel On Auto Off Overlap Off Duplicates Off Offset 2
+      Visibility On
+  Layer 3
+    Display Global
+    Global Pen (1,2,0) Brush (2,16777215,16777215) Symbol (35,0,12) Line (25,2,10526720) Font ("Arial",0,9,0)
+    Label Line Arrow Position Above Font ("Arial",0,9,0) Pen (1,2,0) 
+      With STREET
+      Parallel On Auto Off Overlap Off Duplicates Off Offset 2
+      Visibility On
+  Layer 4
+    Display Graphic
+    Global Pen (1,2,0) Brush (2,16777215,16777215) Symbol (35,0,12) Line (2,65,16760832) Font ("Arial",0,9,0)
+    Zoom (0, 100) Units "km" 
+    Label Line Arrow Position Above Font ("Arial",0,9,0) Pen (1,2,0) 
+      With STREET
+      Parallel On Auto Off Overlap Off Duplicates Off Offset 2
+      Visibility On
+  Layer 5
+    Display Graphic
+    Global Pen (15,2,10046477) Brush (1,16777215,16777215) Symbol (35,0,12) Line (1,2,0) Font ("Arial",0,9,0)
+    Label Line None Position Center Font ("Arial",0,9,0) Pen (1,2,0) 
+      With name
+      Parallel On Auto Off Overlap Off Duplicates On Offset 2
+      Visibility On
+  Layer 6
+    Display Global
+    Global Pen (21,2,12905471) Brush (2,12905471,16777215) Symbol (35,0,12) Line (1,2,0) Font ("Arial",0,9,0)
+    Label Line None Position Center Font ("Arial",0,9,0) Pen (1,2,0) 
+      With NAME
+      Parallel On Auto Off Overlap Off Duplicates On Offset 2
+      Visibility On
+Set Map Layer 0 Editable
+Set Window FrontWindow() Printer
+ Name "MapInfo PDF Printer Version 10.5" Orientation Portrait Copies 1
+ Papersize 9
+End Sub
+
+'----------------------------------------------------------
+Sub  InfoFunction
+'Custom Dialog Information Box	
+
+'Print "INFO"
+Dialog 
+		Title "About " + AppName
+ 		Control StaticText title AppName Position 3*4, 1.5*8
+		Control StaticText title "Version "+ AppVersion Position 3*4, 3*8
+		Control StaticText title "Release Date:" +UpdateDate Position 3*4, 4.5*8
+		Control StaticText title "--------------------------------------------------------------------------------------------------------------------------------------" Position 3*4, 5.5*8
+		Control StaticText title "AssetMaster is a database system used for recording and reporting information for " Position 3*4, 7*8
+		Control StaticText title "Transport and Main Roads intelligent transport systems (ITS) and electrical assets." Position 3*4, 8*8
+		Control StaticText title "While this database system includes spatial information such as latitude and longitude it" Position 3*4, 9*8
+		Control StaticText title "does not have the capability of displaying this data spatially. " Position 3*4, 10*8
+		Control StaticText title "Accessing data from remote data sources in a MapInfo environment allows a user to " Position 3*4, 11*8
+		Control StaticText title "view assets and other data spatially, enhancing asset management capabilities. " Position 3*4, 12*8
+		Control StaticText title "Currently, in order to view the data within AssetMaster spatially involves extracting the " Position 3*4, 13*8
+		Control StaticText title "data table and importing this data into MapInfo or some other mapping application. This " Position 3*4, 14*8
+		Control StaticText title "can be quite a complex process for users that have little to no experience with these " Position 3*4, 15*8
+		Control StaticText title "particular programs." Position 3*4, 16*8
+		Control StaticText title "The main goal of creating a DBMS connection between AssetMaster and MapInfo is to " Position 3*4, 18*8
+		Control StaticText title "provide these users with a simple interface that can be customised to suit the needs of " Position 3*4, 19*8
+		Control StaticText title "the data. " Position 3*4, 20*8
+		Control StaticText title "The purpose of this proposal is to provide information on the process of connecting " Position 3*4, 22*8
+		Control StaticText title "the Asset Master database to MapInfo Professional in order to provide a useful " Position 3*4, 23*8
+		Control StaticText title "visual interface for all ITS&ET staff. It will also outline all desirable features of " Position 3*4, 24*8
+		Control StaticText title "functionality in order to start the customisation process. This will be split into two " Position 3*4, 25*8
+		Control StaticText title "main categories;" Position 3*4, 26*8
+		Control StaticText title " 1.	Creating a Live Feed Connection for the Asset Master database" Position 3*4, 28*8
+		Control StaticText title " 2.	Functionality options to be implemented within a user interface" Position 3*4, 29*8
+		Control StaticText title "--------------------------------------------------------------------------------------------------------------------------------------" Position 3*4, 30.5*8
+		Control StaticText title Chr$(169) + " "+Department+" ("+DepartmentAco+")" Position 3*4, 32*8
+		Control StaticText title "While every care is taken to ensure the accuracy of this information.DTMR makes no" Position 3*4, 33*8
+		Control StaticText title "representation or warranties about accuracy, reliabiltiy and completeness and disclaims" Position 3*4, 34*8
+		Control StaticText title "all responsiblity and liability." Position 3*4, 35*8
+		Control StaticText title "For technical support please contact:" Position 3*4, 37*8
+		Control StaticText title WorkingUnit Position 3*4, 38*8
+		Control StaticText title LocationUnit Position 3*4, 39*8
+		Control OKButton Title "&OK" Position 60*4, 41*8
+		Control GroupBox  Width 290 Height 270 Position 5,2
+End Sub
+'----------------------------------------------------------
+
+Sub OkHandler
+'Read in MultiList Box Answers
+
+		'Sets array for browse asset of interest
+		Dim MultiListAns As Integer			
+		y=0
+		ReDim ChosenAsset(30000)
+		MultiListAns = ReadControlValue(3) ' Number of Selected Items
+
+		Do While MultiListAns <> 0
+			y=y+1
+			ChosenAsset(y) = OdbcTablesA(MultiListAns)
+			Print ChosenAsset(y)
+			'Print MultiListAns
+			MultiListAns = ReadControlValue(3)
+		Loop
+
+		'Sets array for map asset of interest
+		'Dim MultiListAnsMap As Integer		
+		w=0
+		ReDim ChosenAssetMap(30000)
+		MultiListAns = ReadControlValue(5) ' Number of Selected Items
+
+		Do While MultiListAns <> 0
+			w=w+1
+			ChosenAssetMap(w) = OdbcMapTablesA(MultiListAns)
+			Print ChosenAssetMap(w)
+			'Print MultiListAns
+			MultiListAns = ReadControlValue(5)
+		Loop
+End Sub
+
+'----------------------------------------------------------
+Sub  IconFunction
+'Print "ICON"
+
+Dim OpenTableNs() As String
+Dim i,j,k as Integer
+
+j = NumTables() ' Total open tables
+ReDim OpenTableNs(j) 'Redefinition of Array size
+k = 1 ' Array counter for imported tables
+
+'Set Open tables array
+'Second If statement has hard coded checks for datasets see Subfunction RegionWorkSpace
+	'For i = 1 To j
+		'	OpenTableNs(i) = TableInfo(i,TAB_INFO_NAME)
+'			Print OpenTableNs(i)
+			'If RegionName <> "" Then
+			'	If TableInfo(i,TAB_INFO_NAME) <> water_areas_+RegionName And
+			'	TableInfo(i,TAB_INFO_NAME) <> QldCoastCarto And												
+			'	TableInfo(i,TAB_INFO_NAME) <> sc_roads And
+			'	TableInfo(i,TAB_INFO_NAME) <> RegionName+_RD And
+			'	TableInfo(i,TAB_INFO_NAME) <> Local_Government_Boundaries And
+			'	TableInfo(i,TAB_INFO_NAME) <> Towndots Then
+			'		OpenTableNs(k) = TableInfo(i,TAB_INFO_NAME)
+			'		k=k+1
+			'	End If
+			'End If
+			'OpenTableNs(k) = TableInfo(i,TAB_INFO_NAME) 'Returns only the first layer!!!-> incorrect
+	'Next
+
+Dim UserSymbol As Symbol
+Dim UserMenStr As SmallInt
+
+	Dialog
+		Title "Set Standard Icon" 
+		
+	Control StaticText
+		Title "Choose Asset Layer:"
+		Position 5,10
+	
+	Control ListBox
+		Title From Variable ChosenAssetMap
+		Into UserMenStr
+		Position 5,25
+		Height 70
+		Width 100
+
+	Control StaticText
+		Title "Show Asset Layer As:"
+		Position 110,10
+
+	Control SymbolPicker
+		Position 130,30
+		Into UserSymbol
+
+	Control OkButton
+		Position 95,115
+
+	Control CancelButton
+		Position 140,115
+
+If CommandInfo(CMD_INFO_DLG_OK)Then
+'Need to return the symbol and implement the chanage
+
+'Print TableInfo(MapInfo_Pits,TAB_INFO_NUM)+"checkc this"
+'Print TableInfo(OpenTableNs(UserMenStr),TAB_INFO_NUM)
+'Print TableInfo (OpenTableNs(UserMenStr),)
+
+'Dim LayerInfo As Integer
+
+'Updates icon below - always does layer 1^^
+
+Set Map
+ 	Layer UserMenStr Display Global
+	Global Symbol UserSymbol
+End If
+
+End Sub
+
+'----------------------------------------------------------
