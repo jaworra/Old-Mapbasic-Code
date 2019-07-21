@@ -1,0 +1,96 @@
+' Programmer: John Worall
+' Date:             22/06/2012
+' Description:     Edits Preference File	
+
+'Find (hexidecimal binary) - assumes position is 5363 in prf file 
+'01 00 01 00 00 00 02 00 ff 00 00 ff ff ff 02 00
+'Replace with
+'01 00 00 00 00 00 02 00 ff 00 00 ff ff ff 02 00
+
+' Bugs,Updates and Requirments: 
+' 		Req - MapInfo holds preference in Cache - to take affect program needs to be terminated and relaunch!
+' 		Req - Need to specify a path where all users have read write too!
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+
+Declare Sub Main
+
+Sub Main
+Print Chr$(12)
+
+'-----------------------------------------------------------------------------------------------------------------------
+'Store UserName as Variable - Need to find a more elegant solution!
+
+		Dim UsersFilePath As String
+		'Run Program "CMD.EXE /c echo "+ "%username% > C:\done.d" ' Use this if user can write to C drive
+		Run Program "CMD.EXE /c echo "+ "%username% > C:\DOCUME~1\%username%\Applic~1\Mapinfo\Mapinfo\done.d"  'Wont work if DOCUME~1 Applic~1 are not the fist instance 
+
+			' Run Two loop to wait for Read Write
+			Do While Not FileExists("C:\Documents and Settings\jaworra\Application Data\MapInfo\MapInfo\done.d") 
+			Loop
+
+			Run Program "CMD.EXE /c echo "+ "%username% > C:\DOCUME~1\%username%\Applic~1\Mapinfo\Mapinfo\done.e" 
+			Do While Not FileExists("C:\Documents and Settings\jaworra\Application Data\MapInfo\MapInfo\done.e") 
+			Loop
+
+	Open File "C:\Documents and Settings\jaworra\Application Data\MapInfo\MapInfo\done.d" For Input Access Read As 4 
+	Do While Not EOF(4)
+	Input #4,UsersFilePath
+	loop
+	
+	UsersFilePath = RTrim$(UsersFilePath)' Removes trailing space on the write 
+	UsersFilePath = "C:\Documents and Settings\"+UsersFilePath+"\Application Data\MapInfo\MapInfo\"
+
+'-----------------------------------------------------------------------------------------------------------------------
+
+Open File UsersFilePath+"MAPINFOW.PRF" For BINARY Access Read As 1 
+Open File UsersFilePath+"MAPINFOW_COPY.PRF" For BINARY Access Write As 2 
+
+Dim i as Integer ' Four Bytes
+Dim BinStr As Integer ' Eight Bytes
+
+i=0
+Do While Not EOF(1)
+
+	If (i = 5363) then
+		BinStr = 0
+		Put 2, i,BinStr
+
+		'Get 1, i,BinStr
+		'BinStr = 
+		'Put 2, i,BinStr
+	Else
+		Get 1, i,BinStr
+		Put 2, i,BinStr
+	End If
+
+
+i=i+1
+loop
+
+Close File 1
+Close File 2
+
+'Delete Orignal Preference File
+Kill UsersFilePath+"MAPINFOW.PRF"
+
+'Renames Created Preference File to orignal name
+Rename File UsersFilePath+"MAPINFOW_COPY.PRF" As UsersFilePath+"MAPINFOW.PRF"
+
+
+'Can kill file here * pointer exist
+'Kill UsersFilePath+"done.d"
+'Kill UsersFilePath+"done.e"
+
+'Output Disclaimer
+Print "----------------------------------------"
+Print "Please Restart Your Computer for System"
+Print "Settings to Take Effect!"
+Print "----------------------------------------"
+
+
+End Sub
+

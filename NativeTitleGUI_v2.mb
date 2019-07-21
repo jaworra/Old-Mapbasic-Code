@@ -1,0 +1,829 @@
+' Programmer:       John Worrall
+' Date:             19/08/2013
+' Description:      GUI input table for native title
+' 					Bypass bug in Mapinfo for data entry error. 
+
+Include "menu.def"
+Include "mapbasic.def"
+Include "icons.def"
+Declare Sub Main
+Declare Sub exit_sub
+Declare Sub about_sub
+Declare Sub Watercourse
+Declare Sub RoadAsses
+Declare Sub Property
+'Declare Sub SortTbls
+
+'Make the Menu
+Sub Main
+'GUI Option 1 - Title Bar	
+'Create Menu "Update NT Tables" As
+'	"Update Watercourse" Calling Watercourse,
+'	"Update Road Asses" Calling RoadAsses,
+'	"(-",
+'	"About" Calling about_sub,
+'	"Exit" Calling exit_sub
+'Alter Menu Bar Add "Update NT Tables"
+'Print Chr$(12)
+
+'GUI Option 2 - ButtonPad Bar
+Create ButtonPad "Native Title GUI" As PushButton
+Icon MI_ICON_LETTERS_W
+Calling Watercourse
+HelpMsg "Update Regional_NT_Watercourse_Assess Table\n"
+
+Alter ButtonPad "Native Title GUI" Fixed
+Add Separator
+Add PushButton
+Icon MI_ICON_LETTERS_R
+Calling RoadAsses
+HelpMsg "Update Regional_NT_Road_Assessments Table\n"
+
+
+Alter ButtonPad "Native Title GUI" Fixed
+Add Separator
+Add PushButton
+Icon MI_ICON_LETTERS_P
+Calling Property
+HelpMsg "Update Regional_NT_Road_Assessments Table\n"
+
+
+'Alter ButtonPad "Native Title GUI" Fixed
+'Add Separator
+'Add PushButton
+'Icon MI_ICON_MB_11  
+'Calling SortTbls
+'HelpMsg "Sort Date in Descending Order\n"
+
+Alter ButtonPad "Native Title GUI" Fixed
+Add Separator
+Add PushButton
+Icon MI_ICON_MAPSYMB_10
+Calling about_sub
+HelpMsg "About\n"
+
+Alter ButtonPad "Native Title GUI" Fixed
+Add Separator
+Add PushButton
+'MI_ICON_LETTERS_X
+Icon MI_ICON_SIGNS_1
+Calling exit_sub
+HelpMsg "Exit\n"
+Alter ButtonPad "Native Title GUI" Fixed ToolbarPosition (2,0)
+
+End Sub
+
+'Exit
+Sub exit_sub
+End Program
+End Sub
+
+'About
+Sub about_sub
+Dim message As String
+	message = "Native Title Update  1.1  "
+	message = message + Chr$(13)
+	message = message + "by Geospatial Technologies - JAW"
+	message = message + Chr$(13)
+	message = message + Chr$(13)
+	message = message + "Extend native title functionality."
+	message = message + Chr$(13)
+
+	Note message
+End Sub
+
+Sub Watercourse
+	
+Dim wCol1,wCol2,wCol3,wCol4,wCol5,wCol6,wCol7,wCol12,wCol13,wCol14,wCol15,wCol16,wCol17 As String	
+Dim wCol8,TblOpen As Logical
+Dim wCol9,wCol10,wCol11 As Date
+Dim i,RowNum as integer
+
+
+OnError Goto UpdateTblError
+AfterUpdateTblError:
+'Check table is open
+For i=1 to numtables()
+	If tableinfo(i,1) = "Regional_NT_Watercourse_Assess" Then
+	TblOpen="True" 
+	End If
+Next
+
+If TblOpen = True Then 
+	Fetch Last from Regional_NT_Watercourse_Assess
+		wCol1=Regional_NT_Watercourse_Assess.Col1
+		wCol2=Regional_NT_Watercourse_Assess.Col2
+		wCol3=Regional_NT_Watercourse_Assess.Col3
+		wCol4=Regional_NT_Watercourse_Assess.Col4
+		wCol5=Regional_NT_Watercourse_Assess.Col5
+		wCol6=Regional_NT_Watercourse_Assess.Col6
+		wCol7=Regional_NT_Watercourse_Assess.Col7
+		wCol8=Regional_NT_Watercourse_Assess.Col8
+		wCol9=Regional_NT_Watercourse_Assess.Col9
+		wCol10=Regional_NT_Watercourse_Assess.Col10
+		wCol11=Regional_NT_Watercourse_Assess.Col11
+		wCol12=Regional_NT_Watercourse_Assess.Col12
+		wCol13=Regional_NT_Watercourse_Assess.Col13
+		wCol14=Regional_NT_Watercourse_Assess.Col14
+		wCol15=Regional_NT_Watercourse_Assess.Col15
+		wCol16=Regional_NT_Watercourse_Assess.Col16
+		wCol17=Regional_NT_Watercourse_Assess.Col17
+	
+	'GUI
+		Dialog
+		Title "Update Watercourse Table"
+				
+		Control StaticText
+			Title "ROAD_SECTION_ID:"
+			Position 20,17
+		
+		Control EditText
+			Value wCol1
+			Position 20,27
+			Into wCol1
+		
+		Control StaticText
+			Title "Road_Name:"
+			Position 120,17
+		
+		Control EditText
+			Value wCol2
+			Position 120,27
+			Into wCol2
+	'2		
+		Control StaticText
+			Title "Watercourse_Name:"
+			Position 220,17
+		
+		Control EditText
+			Value wCol3
+			Position 220,27
+			Into wCol3
+		
+		Control StaticText
+			Title "Approx_Chainage:"
+			Position 320,17
+		
+		Control EditText
+			Value wCol4
+			Position 320,27
+			Into wCol4		
+	'4	
+		Control StaticText
+			Title "Area_assessed:"
+			Position 420,17
+		
+		Control EditText
+			Value wCol5
+			Position 420,27
+			Into wCol5
+		
+		Control StaticText
+			Title "Module:"
+			Position 520,17
+		
+		Control EditText
+			Value wCol6
+			Position 520,27
+			Into wCol6
+	'Row 2	
+		Control StaticText
+			Title "Assessment_Status:"
+			Position 20,47
+		
+		Control EditText
+			Value wCol7
+			Position 20,57
+			Into wCol7
+		
+		Control StaticText
+			Title "Native_Title_issues:"
+			Position 120,47
+		
+		Control EditText
+			Value wCol8
+			Position 120,57
+			Into wCol8
+	'2
+		Control StaticText
+			Title "Date_Completed:"
+			Position 220,47
+		
+		Control EditText
+			Value wCol9
+			Position 220,57
+			Into wCol9
+		
+		Control StaticText
+			Title "Assess_Signed_date:"
+			Position 320,47
+		
+		Control EditText
+			Value wCol10
+			Position 320,57
+			Into wCol10
+	'4
+		Control StaticText
+			Title "Assessment_Expires:"
+			Position 420,47
+		
+		Control EditText
+			Value wCol11
+			Position 420,57
+			Into wCol11
+		
+		Control StaticText
+			Title "Assess_file_number:"
+			Position 520,47
+		
+		Control EditText
+			Value wCol12
+			Position 520,57
+			Into wCol12
+		
+	'Row 3	
+		Control StaticText
+			Title "Issued_24KA:"
+			Position 20,77
+		
+		Control EditText
+			Value  wCol13
+			Position 20,87
+			Into  wCol13
+		
+		Control StaticText
+			Title "NT24KA_file_number:"
+			Position 120,77
+		
+		Control EditText
+			Value  wCol14
+			Position 120,87
+			Into  wCol14
+	'2
+		Control StaticText
+			Title "QNTIME_R_Boundary:"
+			Position 220,77
+		
+		Control EditText
+			Value wCol15
+			Position 220,87
+			Into wCol15
+		
+		Control StaticText
+			Title "QNTIME_R_Item:"
+			Position 320,77
+		
+		Control EditText
+			Value wCol16
+			Position 320,87
+			Into wCol16
+	'4
+		Control StaticText
+			Title "QNTIME_conclusion:"
+			Position 420,77
+		
+		Control EditText
+			Value wCol17
+			Position 420,87
+			Into wCol17
+			
+		Control GroupBox
+			Title "Native Title Watercourse Entry:"
+			Position 2, 4 Width 610 Height 105
+		'210
+		Control OKButton
+			Position 550,120
+		Control CancelButton
+			Position 490,120
+	
+		If CommandInfo(CMD_INFO_DLG_OK) Then
+			RowNum=Regional_NT_Watercourse_Assess.RowID
+			Update Regional_NT_Watercourse_Assess set Col1=wCol1,Col2=wCol2,Col3=wCol3,Col4=wCol4,Col5=wCol5,Col6=wCol6,Col7=wCol7,Col8=wCol8,Col9=wCol9,Col10=wCol10,Col11=wCol11,Col12=wCol12,Col13=wCol13,Col14=wCol14,Col15=wCol15,Col16=wCol16,Col17=wCol17
+			Where RowID = RowNum
+			Commit Table Regional_NT_Watercourse_Assess
+		End If
+Else
+		Print "Please open Regional_NT_Watercourse Assess Table"
+End If
+
+Exit Sub
+UpdateTblError:
+Print "Unsuccesful - incorrect entry! "+chr$(10)
+OnError GoTo 0
+Resume AfterUpdateTblError
+
+
+End Sub
+
+Sub RoadAsses
+	
+Dim wCol1,wCol2,wCol3,wCol4,wCol5,wCol6,wCol7,wCol9,wCol13,wCol14,wCol15,wCol16,wCol17,wCol18 As String	
+Dim wCol8,TblOpen As Logical
+Dim wCol10,wCol11,wCol12 As Date
+Dim i,RowNum as integer
+
+
+OnError Goto UpdateTblError
+AfterUpdateTblError:
+'Check table is open
+For i=1 to numtables()
+	If tableinfo(i,1) = "Regional_NT_Road_Assessments" Then
+	TblOpen="True" 
+	End If
+Next
+
+If TblOpen = True Then 
+	Fetch Last from Regional_NT_Road_Assessments
+	wCol1=Regional_NT_Road_Assessments.Col1
+	wCol2=Regional_NT_Road_Assessments.Col2
+	wCol3=Regional_NT_Road_Assessments.Col3
+	wCol4=Regional_NT_Road_Assessments.Col4
+	wCol5=Regional_NT_Road_Assessments.Col5
+	wCol6=Regional_NT_Road_Assessments.Col6
+	wCol7=Regional_NT_Road_Assessments.Col7
+	wCol8=Regional_NT_Road_Assessments.Col8
+	wCol9=Regional_NT_Road_Assessments.Col9
+	wCol10=Regional_NT_Road_Assessments.Col10
+	wCol11=Regional_NT_Road_Assessments.Col11
+	wCol12=Regional_NT_Road_Assessments.Col12
+	wCol13=Regional_NT_Road_Assessments.Col13
+	wCol14=Regional_NT_Road_Assessments.Col14
+	wCol15=Regional_NT_Road_Assessments.Col15
+	wCol16=Regional_NT_Road_Assessments.Col16
+	wCol17=Regional_NT_Road_Assessments.Col17
+	wCol18=Regional_NT_Road_Assessments.Col18
+	
+		'GUI
+		Dialog
+		Title "Update Road Assessment Tables"
+			
+		Control StaticText
+			Title "ROAD_SECTION_ID:"
+			Position 20,17
+		
+		Control EditText
+			Value wCol1
+			Position 20,27
+			Into wCol1
+		
+		Control StaticText
+			Title "Road_Name:"
+			Position 120,17
+		
+		Control EditText
+			Value wCol2
+			Position 120,27
+			Into wCol2
+		'2		
+		Control StaticText
+			Title "Road_Section_name:"
+			Position 220,17
+		
+		Control EditText
+			Value wCol3
+			Position 220,27
+			Into wCol3
+		
+		Control StaticText
+			Title "Total_Rd_Chainage:"
+			Position 320,17
+		
+		Control EditText
+			Value wCol4
+			Position 320,27
+			Into wCol4		
+		'4	
+		Control StaticText
+			Title "Assessment_Type:"
+			Position 420,17
+		
+		Control EditText
+			Value wCol5
+			Position 420,27
+			Into wCol5
+		
+		Control StaticText
+			Title "Area_assessed:"
+			Position 520,17
+		
+		Control EditText
+			Value wCol6
+			Position 520,27
+			Into wCol6
+	
+		'Row 2	
+		Control StaticText
+			Title "Assessment_Status:"
+			Position 20,47
+		
+		Control EditText
+			Value wCol7
+			Position 20,57
+			Into wCol7
+		
+		Control StaticText
+			Title "Native_Title_issues:"
+			Position 120,47
+		
+		Control EditText
+			Value wCol8
+			Position 120,57
+			Into wCol8
+		'2
+		Control StaticText
+			Title "Module:"
+			Position 220,47
+		
+		Control EditText
+			Value wCol9
+			Position 220,57
+			Into wCol9
+			
+		Control StaticText
+			Title "Assess_Comple_date:"
+			Position 320,47
+		
+		Control EditText
+			Value wCol10
+			Position 320,57
+			Into wCol10			
+			
+		
+		Control StaticText
+			Title "Assess_Signed_date:"
+			Position 420,47
+		
+		Control EditText
+			Value wCol11
+			Position 420,57
+			Into wCol11
+		'4
+		Control StaticText
+			Title "Assessment_Expires:"
+			Position 520,47
+		
+		Control EditText
+			Value wCol12
+			Position 520,57
+			Into wCol12
+		
+		Control StaticText
+			Title "Assess_file_number:"
+			Position 20,77
+		
+		Control EditText
+			Value wCol13
+			Position 20,87
+			Into wCol13
+		
+		'Row 3	
+		Control StaticText
+			Title "Issued_24KA:"
+			Position 120,77
+		
+		Control EditText
+			Value  wCol14
+			Position 120,87
+			Into  wCol14
+		
+		Control StaticText
+			Title "NT24KA_file_number:"
+			Position 220,77
+		
+		Control EditText
+			Value  wCol15
+			Position 220,87
+			Into  wCol15
+		'2
+		Control StaticText
+			Title "QNTIME_R_Boundary:"
+			Position 320,77
+		
+		Control EditText
+			Value wCol16
+			Position 320,87
+			Into wCol16
+		
+		Control StaticText
+			Title "QNTIME_R_Item:"
+			Position 420,77
+		
+		Control EditText
+			Value wCol17
+			Position 420,87
+			Into wCol17
+		'4
+		Control StaticText
+			Title "QNTIME_conclusion:"
+			Position 520,77
+		
+		Control EditText
+			Value wCol18
+			Position 520,87
+			Into wCol18
+			
+		Control GroupBox
+			Title "Native Title Road Assessment Entry:"
+			Position 2, 4 Width 610 Height 105
+		'210
+		Control OKButton
+			Position 550,120
+		Control CancelButton
+			Position 490,120
+	
+		If CommandInfo(CMD_INFO_DLG_OK) Then
+			RowNum=Regional_NT_Road_Assessments.RowID
+			Update Regional_NT_Road_Assessments set Col1=wCol1,Col2=wCol2,Col3=wCol3,Col4=wCol4,Col5=wCol5,Col6=wCol6,Col7=wCol7,Col8=wCol8,Col9=wCol9,Col10=wCol10,Col11=wCol11,Col12=wCol12,Col13=wCol13,Col14=wCol14,Col15=wCol15,Col16=wCol16,Col17=wCol17,Col18=wCol18
+			Where RowID = RowNum
+			Commit Table Regional_NT_Road_Assessments
+		End If
+Else
+		Print "Please open Regional_NT_Road_Assessments Table"
+End If
+
+Exit Sub
+UpdateTblError:
+Print "Unsuccesful - incorrect entry! "+chr$(10)
+OnError GoTo 0
+Resume AfterUpdateTblError
+
+End Sub
+
+Sub Property
+	
+Dim wCol1,wCol2,wCol3,wCol5,wCol9,wCol10,wCol11,wCol12,wCol13,wCol14,wCol15,wCol16 As String	
+Dim wCol4,TblOpen As Logical
+Dim wCol6,wCol7,wCol8 As Date
+Dim i,RowNum as integer
+
+
+OnError Goto UpdateTblError
+AfterUpdateTblError:
+'Check table is open
+For i=1 to numtables()
+	If tableinfo(i,1) = "Regional_NT_Property_Assessmen" Then
+	TblOpen="True" 
+	End If
+Next
+
+If TblOpen = True Then 
+	Fetch Last from Regional_NT_Property_Assessmen
+	wCol1=Regional_NT_Property_Assessmen.Col1
+	wCol2=Regional_NT_Property_Assessmen.Col2
+	wCol3=Regional_NT_Property_Assessmen.Col3
+	wCol4=Regional_NT_Property_Assessmen.Col4
+	wCol5=Regional_NT_Property_Assessmen.Col5
+	wCol6=Regional_NT_Property_Assessmen.Col6
+	wCol7=Regional_NT_Property_Assessmen.Col7
+	wCol8=Regional_NT_Property_Assessmen.Col8
+	wCol9=Regional_NT_Property_Assessmen.Col9
+	wCol10=Regional_NT_Property_Assessmen.Col10
+	wCol11=Regional_NT_Property_Assessmen.Col11
+	wCol12=Regional_NT_Property_Assessmen.Col12
+	wCol13=Regional_NT_Property_Assessmen.Col13
+	wCol14=Regional_NT_Property_Assessmen.Col14
+	wCol15=Regional_NT_Property_Assessmen.Col15
+	wCol16=Regional_NT_Property_Assessmen.Col16
+	
+		'GUI
+		Dialog
+		Title "Update Property Assessment Tables"
+			
+		Control StaticText
+			Title "LotPlan:"
+			Position 20,17
+		
+		Control EditText
+			Value wCol1
+			Position 20,27
+			Into wCol1
+		
+		Control StaticText
+			Title "Tenure:"
+			Position 120,17
+		
+		Control EditText
+			Value wCol2
+			Position 120,27
+			Into wCol2
+		'2		
+		Control StaticText
+			Title "Area_Assessed:"
+			Position 220,17
+		
+		Control EditText
+			Value wCol3
+			Position 220,27
+			Into wCol3
+		
+		Control StaticText
+			Title "NT_Issues:"
+			Position 320,17
+		
+		Control EditText
+			Value wCol4
+			Position 320,27
+			Into wCol4		
+		'4	
+		Control StaticText
+			Title "Module:"
+			Position 420,17
+		
+		Control EditText
+			Value wCol5
+			Position 420,27
+			Into wCol5
+		
+		Control StaticText
+			Title "Date_Completed:"
+			Position 520,17
+		
+		Control EditText
+			Value wCol6
+			Position 520,27
+			Into wCol6
+	
+		'Row 2	
+		Control StaticText
+			Title "Date_Signed:"
+			Position 20,47
+		
+		Control EditText
+			Value wCol7
+			Position 20,57
+			Into wCol7
+		
+		Control StaticText
+			Title "Expiry_Date:"
+			Position 120,47
+		
+		Control EditText
+			Value wCol8
+			Position 120,57
+			Into wCol8
+		'2
+		Control StaticText
+			Title "Client:"
+			Position 220,47
+		
+		Control EditText
+			Value wCol9
+			Position 220,57
+			Into wCol9
+		
+		Control StaticText
+			Title "File_Number:"
+			Position 320,47
+		
+		Control EditText
+			Value wCol10
+			Position 320,57
+			Into wCol10
+		'4
+		Control StaticText
+			Title "QNTIME_RB:"
+			Position 420,47
+		
+		Control EditText
+			Value wCol11
+			Position 420,57
+			Into wCol11
+		
+		Control StaticText
+			Title "QNTIME_RIs:"
+			Position 520,47
+		
+		Control EditText
+			Value wCol12
+			Position 520,57
+			Into wCol12
+		
+		'Row 3	
+		Control StaticText
+			Title "QNTIME_Conclusion:"
+			Position 20,77
+		
+		Control EditText
+			Value  wCol13
+			Position 20,87
+			Into  wCol13
+		
+		Control StaticText
+			Title "DP_Number:"
+			Position 120,77
+		
+		Control EditText
+			Value  wCol14
+			Position 120,87
+			Into  wCol14
+		'2
+		Control StaticText
+			Title "PDF_Hyperlink:"
+			Position 220,77
+		
+		Control EditText
+			Value wCol15
+			Position 220,87
+			Into wCol15
+		
+		Control StaticText
+			Title "Comments:"
+			Position 320,77
+		
+		Control EditText
+			Value wCol16
+			Position 320,87
+			Into wCol16
+		
+			
+		Control GroupBox
+			Title "Native Title Property Entry:"
+			Position 2, 4 Width 610 Height 105
+		'210
+		Control OKButton
+			Position 550,120
+		Control CancelButton
+			Position 490,120
+	
+		If CommandInfo(CMD_INFO_DLG_OK) Then
+			RowNum=Regional_NT_Property_Assessmen.RowID
+			Update Regional_NT_Property_Assessmen set Col1=wCol1,Col2=wCol2,Col3=wCol3,Col4=wCol4,Col5=wCol5,Col6=wCol6,Col7=wCol7,Col8=wCol8,Col9=wCol9,Col10=wCol10,Col11=wCol11,Col12=wCol12,Col13=wCol13,Col14=wCol14,Col15=wCol15,Col16=wCol16
+			Where RowID = RowNum
+			Commit Table Regional_NT_Property_Assessmen
+		End If
+Else
+		Print "Please open Regional_NT_Property_Assessments Table"
+End If
+
+Exit Sub
+UpdateTblError:
+Print "Unsuccesful - incorrect entry! "+chr$(10)
+OnError GoTo 0
+Resume AfterUpdateTblError
+End Sub
+
+'Sub SortTbls
+'print chr$(12)
+'Dim noTbls,i,k,win_id as Integer
+'Dim curTbl,pathCurTbl,tempTbl As String 
+'Dim arryTbl(1) As String 
+'Dim succesRun as Logical
+'
+'win_id = FrontWindow()
+'noTbls=numtables()
+'Redim arryTbl(noTbls)
+'
+'k=0
+'For i = 1 to noTbls
+'	curTbl=TableInfo(i,TAB_INFO_NAME)
+'	If curTbl = "Regional_NT_Watercourse_Assess" or curTbl = "Regional_NT_Road_Assessments" or curTbl = "Regional_NT_Property_Assessmen"  Then
+'		k=k+1
+'		arryTbl(k)=curTbl
+'	End If
+'Next
+'
+'OnError Goto SortTblError
+'Redim arryTbl(k)
+'For i=1 to k
+'	
+'	curTbl=TableInfo(arryTbl(i),TAB_INFO_NAME)
+'	pathCurTbl=TableInfo(arryTbl(i),TAB_INFO_TABFILE)
+'	
+'	If FileExists ("C:\Temp\SortedTbl.tab")Then
+'	Open Table "C:\Temp\SortedTbl.tab" As DeleteMe
+'		Drop Table DeleteMe
+'	End If
+'	
+'	'Save temp,sort and replace
+'	Print "Sorting "+curTbl+" by decreasing date..."
+'	Commit Table arryTbl(i) as "C:\Temp\SortedTbl.tab"	
+'	Open Table "C:\Temp\SortedTbl.tab" as tempSavedTbl
+'	Select * from tempSavedTbl order by Date_Completed desc into tempSortTbl
+'	Drop Table arryTbl(i)
+'	Commit Table tempSortTbl as pathCurTbl
+'	Close Table tempSortTbl
+'	Close Table tempSavedTbl
+'	Open Table pathCurTbl as curTbl
+'	Print "Succesfull"+chr$(10)
+'	
+'	'add new tbl to window
+'	Add Map Auto Layer curTbl
+'	AfterSortTblError:
+'Next
+'
+'If succesRun = True Then
+'	Print chr$(10)+"Successfully completed!"
+'Else
+'	Print chr$(10)+"Error occured"
+'	Print "Contatct Geospatial Technologies"
+'	Print "John Worrall E: john.a.worrall@tmr.qld.gov.au "
+'End If 
+'
+'Exit Sub
+'SortTblError:
+'Print "Unsuccesfull"+chr$(10)
+'
+'succesRun = False
+'Close Table tempSavedTbl
+'Resume AfterSortTblError
+'End Sub

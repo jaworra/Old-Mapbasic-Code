@@ -1,0 +1,263 @@
+' Turn restrictions algorithm
+' Programmer:	  John Worall
+' Date:           10/03/201
+' Description:    Count Routes
+' To Add:
+' Requirments :
+' Possible Future Works : 
+'						  					 
+'Library
+'*********************************************************************************************
+Include "mapbasic.def"
+Include "icons.def"
+Declare Sub Main
+Declare Sub ExitSub
+Declare Sub StatThamatic_Analysis(ByVal TableName as String)
+Declare Sub CheckForShoots(ByVal TableName as String, ByVal BufferDist as Integer)
+Declare Sub RouteAPI
+Declare Sub RouteCount
+Declare Sub AboutRoutingScript
+
+'Make the Menu
+Sub Main
+	
+'GUI 
+Create Menu "Routing OD" As
+	"Online Routing API" Calling RouteAPI,
+	"Routing Count" Calling RouteCount,
+	"(-",
+	"About" Calling AboutRoutingScript,
+	"Exit" Calling ExitSub
+Alter Menu Bar Add "Routing OD"
+Print Chr$(12)
+
+End Sub
+
+
+
+Sub RouteAPI
+	
+'First run got to 3443 second run 3703 third run 29322 forth run 47192
+
+Dim RouteMapQ,RouteCar As String
+Dim startTIME,loopTIME As Integer 	
+Dim BufferDist as Integer
+
+BufferDist=25
+startTIME = Timer()
+
+Close All Interactive
+Print Chr$(12)
+
+'Dialog ask...
+'RouteMapQ=FileOpenDlg("%appdata%", "", "TAB", "Select Origin Dataset")
+'RouteCar=FileOpenDlg("%appdata%", "", "TAB", "Select Destination Dataset")
+
+'Server
+'RouteMapQ="G:\Geospatial\GIS\JohnW\Request\ChrisW\Routes\OD\Routes_OD_Townsville.TAB"
+'RouteCar="G:\Geospatial\GIS\JohnW\Request\ChrisW\Routes\OD\OSM_Townsville.TAB"
+
+'Local
+RouteMapQ="C:\Documents and Settings\jaworra\Application Data\MapInfo\MapInfo\Datasets\Routes_OD_Townsville.TAB"
+RouteCar="C:\Documents and Settings\jaworra\Application Data\MapInfo\MapInfo\Datasets\OSM_Townsville.TAB"
+
+If RouteMapQ="" or RouteCar="" Then
+	Print "operation cancelled"
+	Exit Sub
+End If
+Open Table RouteMapQ As CreateRoute
+Open Table RouteCar As OSMRoute
+
+Create Table "Route_Count"
+(CreateRoute_PKey char(50),Street_PKey Integer)
+File PathToDirectory$(LocateFile$(LOCATE_PREF_FILE))+"OSM_Route_Count.tab"
+'Create Map For Route_Count using OSMRoute 
+
+'Speed up Process here
+Set Table Route_Count
+	FastEdit On
+	Undo off
+
+Dim StreetPKey,i,j As Integer
+Dim RoutePKey As String 
+Dim RouteObj,StreetObj As Object
+
+Dim SqlString As String
+
+Print "Processing....."
+j=1 
+Fetch First From CreateRoute
+Do While Not EOT(CreateRoute)
+	
+OnError GoTo ServerExcept
+	'Saves 
+	RoutePKey=str$(CreateRoute.col1)+"/"+str$(CreateRoute.col2)
+	RouteObj=Buffer(CreateRoute.obj,12,BufferDist,"m")
+
+	Select col1,RoutePKey from OSMRoute where OSMRoute.obj Intersects RouteObj into SelectionRoutes NoSelect
+	Insert into Route_Count(Street_PKey,CreateRoute_Pkey) 
+		Select * from SelectionRoutes
+
+	if j=100 then
+		Exit Sub
+	End If
+
+
+	afterERR: 'Resume after error catch
+	j=j+1	
+	'Print format$((j/TableInfo(CreateRoute,TAB_INFO_NROWS)),"#.##%")
+	Commit Table Route_Count
+
+ 	If j Mod 50 = 0 Then 
+		Print j+"/"+TableInfo(CreateRoute,TAB_INFO_NROWS)+" >> "+Format$((j/TableInfo(CreateRoute,TAB_INFO_NROWS)),"#.##%")+"  >> Time(hrs): "+str$((Timer()-startTIME)/3600)
+	End If
+
+Fetch next From CreateRoute
+Loop	
+
+'Statistical analysis here!
+'Thamatic the count based on standard deviation
+
+'call StatThamatic_Analysis(Route_Count)
+Exit sub
+	ServerExcept: 'Clear Catch statement
+		OnError GoTo 0 
+		Print "Error: "+StreetPKey+" -StreetKey   "+RoutePKey+" -RouteKey"
+		Resume afterERR
+End Sub
+
+
+Sub RouteCount
+'First run got to 3443 second run 3703 third run 29322 forth run 47192
+
+Dim RouteMapQ,RouteCar As String
+Dim startTIME,loopTIME As Integer 	
+Dim BufferDist as Integer
+
+BufferDist=25
+startTIME = Timer()
+
+Close All Interactive
+Print Chr$(12)
+
+'Dialog ask...
+'RouteMapQ=FileOpenDlg("%appdata%", "", "TAB", "Select Origin Dataset")
+'RouteCar=FileOpenDlg("%appdata%", "", "TAB", "Select Destination Dataset")
+
+'Server
+'RouteMapQ="G:\Geospatial\GIS\JohnW\Request\ChrisW\Routes\OD\Routes_OD_Townsville.TAB"
+'RouteCar="G:\Geospatial\GIS\JohnW\Request\ChrisW\Routes\OD\OSM_Townsville.TAB"
+
+'Local  
+'*** CHANGE THIS   *****
+RouteMapQ="C:\Documents and Settings\jaworra\Application Data\MapInfo\MapInfo\Datasets\Routes_OD_Townsville.TAB"
+RouteCar="C:\Documents and Settings\jaworra\Application Data\MapInfo\MapInfo\Datasets\OSM_Townsville.TAB"
+
+If RouteMapQ="" or RouteCar="" Then
+	Print "operation cancelled"
+	Exit Sub
+End If
+Open Table RouteMapQ As CreateRoute
+Open Table RouteCar As OSMRoute
+
+Create Table "Route_Count"
+(CreateRoute_PKey char(50),Street_PKey Integer)
+File PathToDirectory$(LocateFile$(LOCATE_PREF_FILE))+"OSM_Route_Count.tab"
+'Create Map For Route_Count using OSMRoute 
+
+'Speed up Process here
+Set Table Route_Count
+	FastEdit On
+	Undo off
+
+Dim StreetPKey,i,j As Integer
+Dim RoutePKey As String 
+Dim RouteObj,StreetObj As Object
+
+Dim SqlString As String
+
+Print "Processing....."
+j=1 
+Fetch First From CreateRoute
+Do While Not EOT(CreateRoute)
+	
+OnError GoTo ServerExcept
+	'Saves 
+	RoutePKey=str$(CreateRoute.col1)+"/"+str$(CreateRoute.col2)
+	RouteObj=Buffer(CreateRoute.obj,12,BufferDist,"m")
+
+	Select col1,RoutePKey from OSMRoute where OSMRoute.obj Intersects RouteObj into SelectionRoutes NoSelect
+	Insert into Route_Count(Street_PKey,CreateRoute_Pkey) 
+		Select * from SelectionRoutes
+
+	if j=100 then
+		Exit Sub
+	End If
+
+
+	afterERR: 'Resume after error catch
+	j=j+1	
+	'Print format$((j/TableInfo(CreateRoute,TAB_INFO_NROWS)),"#.##%")
+	Commit Table Route_Count
+
+ 	If j Mod 50 = 0 Then 
+		Print j+"/"+TableInfo(CreateRoute,TAB_INFO_NROWS)+" >> "+Format$((j/TableInfo(CreateRoute,TAB_INFO_NROWS)),"#.##%")+"  >> Time(hrs): "+str$((Timer()-startTIME)/3600)
+	End If
+
+Fetch next From CreateRoute
+Loop	
+
+Exit sub
+	ServerExcept: 'Clear Catch statement
+		OnError GoTo 0 
+		Print "Error: "+StreetPKey+" -StreetKey   "+RoutePKey+" -RouteKey"
+		Resume afterERR
+End Sub
+
+
+
+Sub StatThamatic_Analysis (ByVal TableName as String)
+	
+	Print TableName
+	Browse * from TableName
+	
+'Thamatic
+'Create Ranges statement 	
+Dim Stat_Count(1),i,average As Integer
+ReDim Stat_Count(TableInfo(TableName,TAB_INFO_NROWS))
+
+i=1
+Fetch First From TableName
+Do While Not EOT(TableName)
+	Stat_Count(i)= Selection.StreetCount
+	i=i+1
+	Fetch next From TableName
+Loop
+
+For i=1 to UBound(Stat_Count)
+	print Stat_Count(i)
+Next
+
+Print "Max Count: "+UBound(Stat_Count)
+Print ""
+
+ReDim Stat_Count(0)
+End Sub
+
+Sub ExitSub
+  Alter Menu Bar Remove "&Sample"
+  End Program
+End Sub
+
+Sub AboutRoutingScript
+	Dim message As String
+	message = "Routing OD 1.1  "
+	message = message + Chr$(13)
+	message = message + "by Geospatial Technologies - JAW"
+	message = message + Chr$(13)
+	message = message + Chr$(13)
+	message = message + "Extend Planning functionality."
+	message = message + Chr$(13)
+	
+	Note message
+End Sub

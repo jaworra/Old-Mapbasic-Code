@@ -1,0 +1,189 @@
+' Proximately puts a point on the line - corrects the position
+' Programmer: John Worall
+' Date:             09/01/2012
+' Description:    Using 
+' To Add: Count coloumn in intersect table and then run sql based on number of columns - Less likely to produce error with table schemes changing - Also avoid > 1000 char limit in Select input
+' Requirments : Boundaries objects split into below tables under specified locations. 
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+Declare Sub Main
+
+Sub Main
+Dim NumRows,fileName,ColOne,ColTwo,NewTblHD,NewTblHD2 As String
+Dim distPtLine As Float
+Dim PointObj As Object
+Dim i As Integer
+
+NewTblHD="C:\Temp\PointsTempTbl.tab"
+NewTblHD2="C:\Temp\PolylineTbl.tab"
+Print Chr$(12)
+close all
+
+fileName = FileOpenDlg("C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\Deliverables\20131202\Working\LinesSplit\LvlXing", "", "*.Tab", "open POINTS file")
+If fileName = "" Then
+	Exit Sub
+End If
+Open Table fileName as PointsTbl
+
+fileName = FileOpenDlg("C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\Deliverables\20131202\Working\LinesSplit", "", "*.Tab", "open Line file")
+If fileName = "" Then
+	Exit Sub
+End If
+
+Open Table fileName as LineTbl
+'create temp table for results
+
+'Create final table
+If fileExists(NewTblHD)Then
+	Open Table NewTblHD as DeleteMe
+	Drop Table DeleteMe
+End If
+
+Select * from PointsTbl into TEMPTbl noselect
+Commit Table TEMPTbl as NewTblHD
+Close table TEMPTbl
+
+Open Table NewTblHD As NewTbl
+Delete from NewTbl
+Commit Table NewTbl
+Pack Table NewTbl Graphic Data
+
+
+'Creates a line joinin the point to the nearest lcoation on a line
+i=1
+NumRows=TableInfo(PointsTbl,TAB_INFO_NROWS)
+print NumRows+" Num Rows"
+Fetch First From PointsTbl
+Do While Not EOT (PointsTbl)
+	PointObj=PointsTbl.obj
+	ColOne=PointsTbl.col1
+	ColTwo=PointsTbl.col2
+	Nearest From Variable PointObj To LineTbl Into NewTbl Ignore Units "m" Data Struct_Name=ColOne, Struct_Description=ColTwo
+	i=i+1
+	Fetch Next from PointsTbl
+Loop
+
+'updates the line object in table to a point on the line (end point of the polyline) 
+Dim X,Y as Float
+Commit Table NewTbl
+i=1
+Fetch First From NewTbl
+Do While Not EOT (NewTbl)
+	PointObj=NewTbl.obj
+	X=ObjectNodeX(PointObj,1,2)
+	Y=ObjectNodeY(PointObj,1,2)
+ 	Update NewTbl Set Obj=CreatePoint(X,Y) where RowId=i
+	print i
+	i=i+1
+	Fetch Next from NewTbl
+Loop
+Commit Table NewTbl
+Pack Table NewTbl Graphic Data
+
+'Split line meterage to level crossing
+'Chanages the point to a line(along the meterage line) object
+
+Dim lineLen as Float
+lineLen=100
+
+'Set Target
+Select * from LineTbl into TargetTbl
+Set Target on
+
+'Set Cutter
+Select * from NewTbl into Selection
+Create Table BufferSeg (BufferDist Char(30))
+Create Map For BufferSeg
+'Create Object As Buffer From Selection Into Table BufferSeg Data BufferDist=lineLen Width lineLen Units "m" Resolution 60
+i=1
+Fetch First From NewTbl
+Do While Not EOT (NewTbl)
+	Run Command "Select * from "+NewTbl+" where RowId = "+i+" into noselect"
+	Create Object As Buffer From Selection Into Table BufferSeg Data BufferDist=lineLen Width lineLen Units "m" Resolution 60
+	i=i+1	
+	Close table Selection
+	Fetch Next from NewTbl
+Loop
+
+
+Select * from BufferSeg into Selection
+'Objects Split into Target
+Objects Split into Target Data col1=col1,col2=col2,col3=col3,col4=col4,col5=col5,col6=col6,col7=col7
+
+
+'Create and new Column and set to False
+Add Column TargetTbl(LvlXing Logical) Values False'From BufferSeg Set to Col1 Where Col1=TRUE Dynamic
+Commit Table TargetTbl as NewTblHD2
+Open Table NewTblHD2 as FinalTable
+
+Run Command "Select Prefix,Shape_leng,Geometry,Radius,LvlXing from TargetTbl,BufferSeg where BufferSeg.Obj Contains TargetTbl.Obj into UpdateTbl"
+Update UpdateTbl set LvlXing=True
+Exit sub
+'Update MYTAB set MYCOL="John"
+
+'Combine objects that touch
+Fetch First From BufferSeg 
+Do While Not EOT (BufferSeg)
+	Run Command "Select Prefix,Shape_leng,Geometry,Radius,LvlXing from TargetTbl,BufferSeg where BufferSeg.Obj Contains TargetTbl.Obj into FinalTable"
+	Exit Sub
+	Fetch First from BufferSeg 
+Loop
+
+
+'Check if there is a column namedLvl crossing 
+Dim LvlXingLog As Logical
+LvlXingLog=False
+
+
+Exit sub
+'Dim lineSplit as Object
+
+Fetch First From NewTbl
+Do While Not EOT (NewTbl)
+	PointObj=Buffer(NewTbl.obj,20,lineLen,"m")
+	'lineSplit= 
+	Fetch Next from PointsTbl
+Loop
+
+'Buffer for Level Crossing 
+Dim BufferMax As Float
+BufferMax=250
+
+'Create buffer based on points
+Set CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000
+Set Distance Units "m" 
+
+'X85
+'structLvlX85=52
+Select * from NewTbl into SelectAll
+Create Table X85 (NOISE_CAT Char(30))
+Create Map For X85
+Create Object As Buffer From Selection Into Table X85 Data NOISE_CAT="X85" Width Minimum(52,BufferMax) Units "m" Resolution 60
+
+'X80
+'structLvlX80=142
+Select * from NewTbl into SelectAll
+Create Table X80 (NOISE_CAT Char(30))
+Create Map For X80
+Create Object As Buffer From Selection Into Table X80 Data NOISE_CAT="X80" Width Minimum(142,BufferMax) Units "m" Resolution 60
+
+'X75
+'structLvlX75=328 = Capped to 250
+Select * from NewTbl into SelectAll
+Create Table X75 (NOISE_CAT Char(30))
+Create Map For X75
+Create Object As Buffer From Selection Into Table X75 Data NOISE_CAT="X75" Width Minimum(328,BufferMax) Units "m" Resolution 60
+
+'X70
+'structLvlX70=607
+Select * from NewTbl into SelectAll
+Create Table X70 (NOISE_CAT Char(30))
+Create Map For X70
+Create Object As Buffer From Selection Into Table X70 Data NOISE_CAT="X70" Width Minimum(607,BufferMax) Units "m" Resolution 60
+
+Map From X85,X80,X75,X70
+
+End Sub
+

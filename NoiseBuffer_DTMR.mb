@@ -1,0 +1,566 @@
+' Program to remove erronous nodes from GPS
+' Programmer: John Worall
+' Date:             050/12/2014
+' Description:    David Dance Request for GPS geometry QA
+' To Add: Buffer on Polygon to check and polyline capabiliies
+' Requirments : QLD boundary and Polygon Geometry
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+Include "icons.def"
+'*************************************************************
+Declare Sub Main
+Declare Sub CreateBuffer
+Declare Sub CheckNodes
+Declare Sub FindEndBuffer(ByVal CurObj As Object, ByVal RowInt As Integer)
+Declare Sub FindMandatoryVsNonLines
+
+Declare Function COGOG(ByVal LineObj As Object, ByVal X As Float, ByVal Y As Float, ByVal X2 As Float, ByVal Y2 As Float) As Object
+Declare Function AngleGeo(ByVal Lat1 As Float,ByVal Lat2 As Float,ByVal Long1 As Float,ByVal Long2 As Float) As Float
+Declare Function atan2 (ByVal dx as float, ByVal dy as float) as float
+Declare Function DeletePoint(ByVal MyWindow as Integer, ByVal COORDSX as Float,ByVal COORDSY as Float,ByVal COORDSX2 as Float,ByVal COORDSY2 as Float) As Logical
+Declare Function CreateTangent(ByVal MyWindow as Integer, ByVal COORDSX as Float,ByVal COORDSY as Float,ByVal COORDSX2 as Float,ByVal COORDSY2 as Float) As Object
+
+define PI 3.1415926535898
+define HALF_PI 1.5707963267949
+define TWO_PI 6.2831853071796
+define EPSILON 1E-13
+define OFFSET_TANG 260
+
+Sub Main
+	Call FindMandatoryVsNonLines
+	'Call CheckNodes
+End Sub
+
+
+Function COGOG(ByVal LineObj As Object, ByVal X As Float, ByVal Y As Float,ByVal X2 As Float, ByVal Y2 As Float) As Object
+Set CoordSys Earth 
+Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000
+
+Dim deltaX,deltaY,degAngle,dist,Angle As Float
+Dim East1,East2,CH1,North1,North2,CH2,DCH2 As Float
+Dim FEast,FNorth As Float
+
+deltaY=ObjectGeography(LineObj,OBJ_GEO_LINEENDY)-ObjectGeography(LineObj,OBJ_GEO_LINEBEGY) 'Y2-Y1
+deltaX=ObjectGeography(LineObj,OBJ_GEO_LINEENDX)-ObjectGeography(LineObj,OBJ_GEO_LINEBEGX) 'X2-X1
+dist=ObjectLen(LineObj,"m")
+
+
+Print "Delta X" & deltaX
+Print "Delta Y" & deltaY
+
+
+'''''''''''''''''''''''''''''     Determine Quadrant     ''''''''''''''''''''''''''''''
+Dim TangX,TangY,TangX2,TangY2 As Float
+
+
+If deltaY >= 0 And deltaX >= 0 Then  'NE 
+	Angle=Atn((Y2-Y)/(X2-X))*RAD_2_DEG
+	Print "NE: " & Angle
+
+ElseIf deltaY >= 0 And deltaX < 0 Then 'NW 
+
+	Angle=Atn(abs(X2-X)/(Y2-Y))*RAD_2_DEG+90
+	Print "NW: " & Angle 
+
+ElseIf deltaY < 0 And deltaX >= 0 Then  'SE 
+
+	Angle=360-(Atn(abs(Y2-Y)/(X2-X))*RAD_2_DEG)
+	Print "SE: " & Angle
+	
+ElseIf deltaY < 0 And deltaX < 0 Then  'SW 
+
+	Angle=Atn(abs(Y2-Y)/abs(X2-X))*RAD_2_DEG+180
+	Print "SW: " & Angle 
+
+End If
+
+'Create Tangent Lines
+	TangX=X+(sin(Angle*DEG_2_RAD)*OFFSET_TANG)
+	TangY=Y-(cos(Angle*DEG_2_RAD)*OFFSET_TANG)
+
+	TangX2=X-(sin(Angle*DEG_2_RAD)*OFFSET_TANG)
+	TangY2=Y+(cos(Angle*DEG_2_RAD)*OFFSET_TANG)
+
+COGOG=CreateLine(TangX,TangY,TangX2,TangY2)
+End Function
+
+
+Function CreateTangent(ByVal MyWindow as Integer, ByVal COORDSX as Float,ByVal COORDSY as Float,ByVal COORDSX2 as Float,ByVal COORDSY2 as Float) As Object
+
+Dim LineObj,LineObj2,LineObj3,CogoLine As object
+LineObj=CreateLine(COORDSX,COORDSY,COORDSX2,COORDSY2)
+LineObj2=RotateAtPoint(LineObj,90,CreatePoint(COORDSX,COORDSY))
+LineObj3=RotateAtPoint(LineObj,270,CreatePoint(COORDSX,COORDSY))
+LineObj=CreateLine(ObjectGeography(LineObj2,OBJ_GEO_LINEENDX),ObjectGeography(LineObj2,OBJ_GEO_LINEENDY),ObjectGeography(LineObj3,OBJ_GEO_LINEENDX),ObjectGeography(LineObj3,OBJ_GEO_LINEENDY))
+
+CogoLine=COGOG(CreateLine(COORDSX,COORDSY,COORDSX2,COORDSY2),COORDSX,COORDSY,COORDSX2,COORDSY2)
+
+'X and Y are the intersection point on the line. 
+Set Map 
+Window MyWindow
+Center (COORDSX,COORDSY)
+Zoom 1000 Units "m"
+
+Print AngleGeo(COORDSX,COORDSY,COORDSX2,COORDSY2) & "Check angle"
+
+'Sets points/txt styles
+Set Style Font MakeFont("Times New Roman", 258, 10, RED,WHITE) ' See page 300 -(frontname, style,size,foregroud color,backgroud color )
+Set Style Symbol MakeSymbol( 34, RED, 6) ' See page 681 symbol , 502 for colour
+Set Style LinePen MakePen(1, 2, RED)
+
+
+'FIRST POINT TXT Generation
+'Insert Into
+'WindowInfo( MyWindow, WIN_INFO_TABLE) (Object)
+'Values (CreateText(MyWindow,COORDSX,COORDSY,"First Node -- Long: "+COORDSX+"    Lat: "+COORDSY, 0,5,15))
+
+'Point Generation
+Insert Into
+WindowInfo( MyWindow, WIN_INFO_TABLE) (Object)
+Values (CreatePoint(COORDSX, COORDSY))
+
+'Create Tangent Point Here
+Insert Into
+WindowInfo( MyWindow, WIN_INFO_TABLE) (Object)
+Values(CogoLine)
+
+'SECOND POINT TXT Generation
+'Insert Into
+'WindowInfo( MyWindow, WIN_INFO_TABLE) (Object)
+'Values (CreateText(MyWindow,COORDSX2,COORDSY2,"Final Node -- Long: "+COORDSX2+"    Lat: "+COORDSY2, 0,5,15))
+
+'Point Generation
+Insert Into
+WindowInfo( MyWindow, WIN_INFO_TABLE) (Object)
+Values (CreatePoint(COORDSX2, COORDSY2))
+
+'DeletePoint=Ask("Delete Nodes between displayed section","YES", "NO")
+Dialog
+  Title "Delete Nodes between displayed section"
+	Position 1,1
+	Control OKButton 
+		Position 85, 10
+	Control CancelButton 
+		Position 140, 10
+		
+If CommandInfo(CMD_INFO_DLG_OK) Then
+	CreateTangent=CogoLine
+Else
+	CreateTangent=CreatePoint(1,1)
+End IF
+End Function
+
+
+Sub FindMandatoryVsNonLines
+	Dim PolyObj,IntObj,Tangent As Object
+	Dim RowNo As Integer
+	Dim x,y,x2,y2 As Float
+		
+	If fileExists("E:\NoiseBuffer\TempTbl.TAB")then
+		Open Table "E:\NoiseBuffer\TempTbl.TAB" as DeleteMe
+		Drop Table DeleteMe
+	End If
+	If fileExists("E:\NoiseBuffer\Tangents.TAB")then
+		Open Table "E:\NoiseBuffer\Tangents.TAB" as DeleteMe
+		Drop Table DeleteMe
+	End If	
+	
+	
+	'Save to local drive and open
+	Print "Cache datasets locally...."
+	Select * from MainCWYs_SCR_Combined_2010 where Mandatory=1 into MandatorySelection 	
+	Commit Table MandatorySelection As "E:\NoiseBuffer\TempTbl.TAB"
+	Open Table "E:\NoiseBuffer\TempTbl.TAB" as MandatoryTable
+	
+	Commit Table MandatoryTable As "E:\NoiseBuffer\Tangents.TAB"
+	Open Table  "E:\NoiseBuffer\Tangents.TAB" as TangentTable
+	Delete from TangentTable
+	Commit Table TangentTable
+	Pack Table TangentTable Graphic Data
+	
+	Commit Table TangentTable As "E:\NoiseBuffer\RejectectTangents.TAB"
+	Open Table  "E:\NoiseBuffer\RejectectTangents.TAB" as RejectTan
+	
+	
+	Select * from MainCWYs_SCR_Combined_2010 where Mandatory=0 into NonMandatorySelection
+	
+	RowNo=1
+	Print Chr$(12)
+
+	Fetch First from NonMandatorySelection
+	Do While NOT EOT(NonMandatorySelection)
+		PolyObj=NonMandatorySelection.obj
+
+		Select * from MandatoryTable where PolyObj intersects MandatoryTable.obj into TestSel 	
+	
+		If TableInfo(TestSel,TAB_INFO_NROWS) = 1 Then
+			IntObj=Overlap(PolyObj,TestSel.obj)
+			Print "##############################"
+'			Print Objectinfo(IntObj,OBJ_INFO_TYPE)
+'			Print Objectinfo(IntObj,OBJ_INFO_NPNTS)
+'			Print ObjectNodeX(IntObj,1,1) + " " + ObjectNodeY(PolyObj,1,1)
+			
+			x=CentroidX(IntObj)
+			y=CentroidY(IntObj)
+			x2=ObjectNodeX(PolyObj,1,1)
+			y2=ObjectNodeY(PolyObj,1,1)
+			
+			If Distance(CentroidX(IntObj),CentroidY(IntObj),ObjectNodeX(PolyObj,1,1), ObjectNodeY(PolyObj,1,1),"m") <> 0 Then ' Last Point on object is intersection
+				x2=ObjectNodeX(PolyObj,1,Objectinfo(PolyObj,OBJ_INFO_NPNTS)-1)
+				y2=ObjectNodeY(PolyObj,1,Objectinfo(PolyObj,OBJ_INFO_NPNTS)-1)
+			Else 'First node is the intersection 
+				x2=ObjectNodeX(PolyObj,1,2)
+				y2=ObjectNodeY(PolyObj,1,2)
+			End If
+			
+			'The following prints out cooridnates of plane to take the tangent too
+'			Print Distance(CentroidX(IntObj),CentroidY(IntObj),ObjectNodeX(PolyObj,1,1), ObjectNodeY(PolyObj,1,1),"m") + "First Node"
+'			Print Distance(CentroidX(IntObj),CentroidY(IntObj),ObjectNodeX(PolyObj,1,Objectinfo(PolyObj,OBJ_INFO_NPNTS)), ObjectNodeY(PolyObj,1,Objectinfo(PolyObj,OBJ_INFO_NPNTS)),"m") + "Last Node"
+			
+			Tangent=CreateTangent(FrontWindow(),x,y,x2,y2)
+			
+			If Objectinfo(Tangent,OBJ_INFO_TYPE) = 3 Then	'Correct tangent created and returned
+				'TangentTable
+				Insert Into TangentTable(obj) values (Tangent) 
+				Commit Table TangentTable
+				'Save return object into a table?
+				'Print "saved"
+			Else 
+				Insert Into RejectTan(obj) values (Tangent) 
+				Commit Table RejectTan
+				'Save not used tangest in here...
+			End If
+		
+		End If
+		'Call FindEndBuffer(PolyObj,1)
+		RowNo=RowNo+1
+'		If RowNo >8 Then
+'			End Program
+'		End If
+	Fetch Next from NonMandatorySelection
+	Loop
+
+End Sub
+
+
+Sub CheckNodes
+	Dim PolyObj As Object
+	Dim RowId As Integer
+	
+	RowID=1
+	Print Chr$(12)
+	
+	Fetch First from TestPolygon
+	Do While NOT EOT(TestPolygon)
+		PolyObj=TestPolygon.obj
+		Call FindEndBuffer(PolyObj,1)
+		RowID=RowID+1
+	Fetch Next from TestPolygon
+	Loop
+End Sub
+
+	
+Sub FindEndBuffer(ByVal CurObj As Object, ByVal RowInt As Integer)
+	Dim n,win_id As Integer
+	Dim Dist1,Dist2,Dist3,Dist4,Dist5,Dist6,MaxDist,MinDist As Float 
+	Dim Ang1,Ang2,DiffAng As Float 
+	Dim ObjectEditNode As Object
+	Dim Diameter, SemiCircum as Float
+	
+	ObjectEditNode=CurObj
+	n=1
+	win_id=FrontWindow()
+		
+	Print "Processing all " & ObjectInfo(CurObj,OBJ_INFO_NPNTS) & " nodes"
+	Print "Number of Objects: " & ObjectInfo(CurObj,OBJ_INFO_NPOLYGONS )
+
+	For n=1 to ObjectInfo(CurObj,OBJ_INFO_NPNTS)-6
+		OnError GoTo ErrorCall	
+
+'###########################################  Angle CRITERIA HERE  ################################################################
+'Calcualte the angle of nodes (between 6- 9) for a 90 degree anagle. Need the previous node for a bearing.		
+	'Print AngleGeo(153.482670,153.482670,-28.129297,-27.129297)
+	'End Program
+
+		If n > 1 Then
+			'Ang1=AngleGeo(ObjectNodeX(CurObj,1,n),ObjectNodeX(CurObj,1,n-1),ObjectNodeY(CurObj,1,n),ObjectNodeY(CurObj,1,n-1))
+			Ang1=AngleGeo(ObjectNodeX(CurObj,1,n-1),ObjectNodeX(CurObj,1,n),Abs(ObjectNodeY(CurObj,1,n-1)),Abs(ObjectNodeY(CurObj,1,n)))
+			'Ang2=AngleGeo(ObjectNodeX(CurObj,1,n),ObjectNodeX(CurObj,1,n+6),Abs(ObjectNodeY(CurObj,1,n)),Abs(ObjectNodeY(CurObj,1,n+6)))  '6 nodes
+			'Ang2=AngleGeo(ObjectNodeX(CurObj,1,n),ObjectNodeX(CurObj,1,n+7),Abs(ObjectNodeY(CurObj,1,n)),Abs(ObjectNodeY(CurObj,1,n+7))) '7 nodes
+			Ang2=AngleGeo(ObjectNodeX(CurObj,1,n),ObjectNodeX(CurObj,1,n+8),Abs(ObjectNodeY(CurObj,1,n)),Abs(ObjectNodeY(CurObj,1,n+8))) '8 nodes
+			
+			DiffAng=Abs(Ang1-Ang2)
+			
+		 	'DiffAng = Abs(AngleGeo(ObjectNodeX(CurObj,1,n),ObjectNodeX(CurObj,1,n-1),ObjectNodeY(CurObj,1,n),ObjectNodeY(CurObj,1,n-1))- AngleGeo(ObjectNodeX(CurObj,1,n),ObjectNodeX(CurObj,1,n+6),ObjectNodeY(CurObj,1,n),ObjectNodeY(CurObj,1,n+6)))
+			Print DiffAng
+			'If DiffAng > 80 and  DiffAng < 100 and Ang2 <> 0 and Ang1 <> 0 Then 
+			If DiffAng > 80 and Ang2 <> 0 and Ang1 <> 0 Then 
+			If DeletePoint(win_id,ObjectNodeX(CurObj,1,n),ObjectNodeY(CurObj,1,n),ObjectNodeX(CurObj,1,n+6),ObjectNodeY(CurObj,1,n+6)) = TRUE Then
+					Print "First Bearing: "+Ang1
+					Print "Second Bearing: "+Ang2
+					Diameter=Distance(ObjectNodeX(CurObj,1,n),ObjectNodeY(CurObj,1,n),ObjectNodeX(CurObj,1,n+6),ObjectNodeY(CurObj,1,n+6), "m")
+				    SemiCircum= Distance(ObjectNodeX(CurObj,1,n),ObjectNodeY(CurObj,1,n),ObjectNodeX(CurObj,1,n+1),ObjectNodeY(CurObj,1,n+1), "m")+Distance(ObjectNodeX(CurObj,1,n+1),ObjectNodeY(CurObj,1,n+1),ObjectNodeX(CurObj,1,n+2),ObjectNodeY(CurObj,1,n+2), "m")+Distance(ObjectNodeX(CurObj,1,n+2),ObjectNodeY(CurObj,1,n+2),ObjectNodeX(CurObj,1,n+3),ObjectNodeY(CurObj,1,n+3), "m")+Distance(ObjectNodeX(CurObj,1,n+3),ObjectNodeY(CurObj,1,n+3),ObjectNodeX(CurObj,1,n+4),ObjectNodeY(CurObj,1,n+4), "m")+Distance(ObjectNodeX(CurObj,1,n+4),ObjectNodeY(CurObj,1,n+4),ObjectNodeX(CurObj,1,n+5),ObjectNodeY(CurObj,1,n+5), "m")+Distance(ObjectNodeX(CurObj,1,n+5),ObjectNodeY(CurObj,1,n+5),ObjectNodeX(CurObj,1,n+6),ObjectNodeY(CurObj,1,n+6), "m")					
+					Print "Distance between Diameter: "+ Diameter
+					Print "Distance between Circumfrance: "+ SemiCircum
+					
+					Print "user Choose Yes"
+					
+					'Alter Object 
+'					Alter Object ObjectEditNode Node Remove Position 1,n
+'					Alter Object ObjectEditNode Node Remove Position 1,n+1
+'					Alter Object ObjectEditNode Node Remove Position 1,n+2
+'					Alter Object ObjectEditNode Node Remove Position 1,n+3
+'					Alter Object ObjectEditNode Node Remove Position 1,n+4
+'					Alter Object ObjectEditNode Node Remove Position 1,n+5
+'					Alter Object ObjectEditNode Node Remove Position 1,n+6
+
+'					'Update Table
+'					Update TestPolygon Set Obj=ObjectEditNode Where Rowid=RowInt
+					End Program 
+				Else
+					Print "User chose No"
+				End If				
+		
+			End If
+		End If
+'#####################################################################################################################################
+			
+			
+			
+'###########################################  DISTANCE CRITERIA HERE  ################################################################
+''Calculates the distance for a buffers end....
+		
+		'Set Distance
+'		Dist1=Distance(ObjectNodeX(CurObj,1,n),ObjectNodeY(CurObj,1,n),ObjectNodeX(CurObj,1,n+1),ObjectNodeY(CurObj,1,n+1), "m")
+'		Dist2=Distance(ObjectNodeX(CurObj,1,n+1),ObjectNodeY(CurObj,1,n+1),ObjectNodeX(CurObj,1,n+2),ObjectNodeY(CurObj,1,n+2), "m")
+'		Dist3=Distance(ObjectNodeX(CurObj,1,n+2),ObjectNodeY(CurObj,1,n+2),ObjectNodeX(CurObj,1,n+3),ObjectNodeY(CurObj,1,n+3), "m")
+'		Dist4=Distance(ObjectNodeX(CurObj,1,n+3),ObjectNodeY(CurObj,1,n+3),ObjectNodeX(CurObj,1,n+4),ObjectNodeY(CurObj,1,n+4), "m")
+'		Dist5=Distance(ObjectNodeX(CurObj,1,n+4),ObjectNodeY(CurObj,1,n+4),ObjectNodeX(CurObj,1,n+5),ObjectNodeY(CurObj,1,n+5), "m")
+'		Dist6=Distance(ObjectNodeX(CurObj,1,n+5),ObjectNodeY(CurObj,1,n+5),ObjectNodeX(CurObj,1,n+6),ObjectNodeY(CurObj,1,n+6), "m")
+'
+'		MaxDist=Maximum(Dist1,Dist2)
+'		MaxDist=Maximum(MaxDist,Dist3)
+'		MaxDist=Maximum(MaxDist,Dist4)
+'		MaxDist=Maximum(MaxDist,Dist5)
+'		MaxDist=Maximum(MaxDist,Dist6)
+'		
+'		MinDist=Minimum(Dist1,Dist2)
+'		MinDist=Minimum(MinDist,Dist3)	
+'		MinDist=Minimum(MinDist,Dist4)	
+'		MinDist=Minimum(MinDist,Dist5)			
+'		MinDist=Minimum(MinDist,Dist6)	
+'		'Print n + " ---  Max - Min Distance: " + MaxDist-MinDist
+'
+'		If MaxDist-MinDist < 3 Then 
+'			Print "Found a curve? " & "  Max Dist: " & MaxDist  & "  Min Dist: " & MinDist
+'			Print "Running through Nodes: " & n & "  | Dist:   " & Int(Dist1) & " " & Int(Dist2) & " " & Int(Dist3) & " "  & Int(Dist4) & " "  & Int(Dist5) & " "  & Int(Dist6)   
+'			Print ObjectNodeX(CurObj,1,1) + " " + ObjectNodeY(CurObj,1,1)
+'			Print ObjectNodeX(CurObj,1,n+2)+ " " + ObjectNodeY(CurObj,1,n+2)
+'			Print ObjectNodeX(CurObj,1,n+3)+ " " + ObjectNodeY(CurObj,1,n+3)			
+'			Print ObjectNodeX(CurObj,1,n+4)+ " " + ObjectNodeY(CurObj,1,n+4)			
+'			Print ObjectNodeX(CurObj,1,n+5)+ " " + ObjectNodeY(CurObj,1,n+5)		
+'			Print ObjectNodeX(CurObj,1,n+6)+ " " + ObjectNodeY(CurObj,1,n+6)
+'			If DeletePoint(win_id,ObjectNodeX(CurObj,1,n),ObjectNodeY(CurObj,1,n),ObjectNodeX(CurObj,1,n+6),ObjectNodeY(CurObj,1,n+6)) = TRUE Then
+'				Print "user choose Yes"
+'				End Program 
+'			Else
+'				Print "User chose No" 
+'				'End Program
+'			End If
+'		End If
+'#############################################################################################################################################	
+
+		'Take this out later - Run time exit
+		IF n=7000 Then 
+			Print "Exit Sub"
+			Exit Sub
+		End If
+
+		NextNode:
+		OnError GoTo 0
+	Next
+	
+	Exit Sub
+	ErrorCall:
+	Print "Error Found, Skipping Node" + n
+	Resume NextNode
+	
+End Sub
+
+Sub CreateBuffer	
+		
+	Dim SegTblStr As String
+	Dim x,noRows as Integer
+	Dim LineObj,Bufx58,Bufx63,Bufx68,Bufx73 As Object
+	
+	SegTblStr=FileOpenDlg("E:\DCDB_Fix", "", "TAB", "Select Dataset to do QA")
+	Open Table SegTblStr As SegTbl
+	x=1
+	Print chr$(12)
+	
+	'noRows= 
+	Fetch First From SegTbl
+	Do While Not EOT(SegTbl)
+		LineObj=SegTbl.obj
+		
+		If SegTbl.Mandatory=0 Then 'Mandatory
+			Bufx58=Buffer(LineObj,12,SegTbl.x58,"m")
+			Bufx63=Buffer(LineObj,12,SegTbl.x63,"m")
+			Bufx68=Buffer(LineObj,12,SegTbl.x68,"m")
+			Bufx73=Buffer(LineObj,12,SegTbl.x73,"m")
+			
+			Insert Into SegTbl(x58,Obj) Values (1,Bufx58)
+			Insert Into SegTbl(x63,Obj) Values (1,Bufx63)
+			Insert Into SegTbl(x68,Obj) Values (1,Bufx68)
+			Insert Into SegTbl(x73,Obj) Values (1,Bufx73)	
+			
+		'Perpendicular
+		Else
+	'		Bufx58=Buffer(LineObj,12,SegTbl.x58,"m")
+	'		Bufx63=Buffer(LineObj,12,SegTbl.x63,"m")
+	'		Bufx68=Buffer(LineObj,12,SegTbl.x68,"m")
+	'		Bufx73=Buffer(LineObj,12,SegTbl.x73,"m")
+		
+	'		Insert Into SegTbl(x58,Obj) Values (1,Bufx58)
+	'		Insert Into SegTbl(x63,Obj) Values (1,Bufx63)
+	'		Insert Into SegTbl(x68,Obj) Values (1,Bufx68)
+	'		Insert Into SegTbl(x73,Obj) Values (1,Bufx73)	
+	'		Print x
+		End If
+	
+		'Print SegTbl.X58
+		'Print SegTbl.X63
+		'Print SegTbl.X73
+		x=x+1
+		Fetch Next From SegTbl
+	Loop
+	Commit Table SegTbl
+	
+	Select * from SegTbl Where x58=1 into Selection
+	Objects Combine Data x58=1
+	Print "x58"
+	
+	Select * from SegTbl Where x63=1 into Selection
+	Objects Combine Data x63=1
+	Print "x63"
+	
+	Select * from SegTbl Where x68=1 into Selection
+	Objects Combine Data x68=1
+	Print "x68"
+	
+	Select * from SegTbl Where x73=1 into Selection
+	Objects Combine Data x73=1
+	Print "x73"
+	
+	'Print "Combining x58 noise buffers"
+	'Create Object As Union From SegTbl Into Table SegTbl Data x58=1
+	'Commit Table SegTbl
+	'Print "Combining x63 noise buffers"
+	'Create Object As Union From SegTbl Into Table SegTbl Data x63=1
+	'Commit Table SegTbl
+	'Print "Combining x68 noise buffers"
+	'Create Object As Union From SegTbl Into Table SegTbl Data x68=1
+	'Commit Table SegTbl
+	'Print "Combining x73 noise buffers"
+	'Create Object As Union From SegTbl Into Table SegTbl Data x73=1
+	'Commit Table SegTbl
+End Sub
+
+Function DeletePoint(ByVal MyWindow as Integer, ByVal COORDSX as Float,ByVal COORDSY as Float,ByVal COORDSX2 as Float,ByVal COORDSY2 as Float) As Logical 
+
+Set Map 
+Window MyWindow
+Center (COORDSX,COORDSY)
+Zoom 1000 Units "m"
+
+'Sets points/txt styles
+Set Style Font MakeFont("Times New Roman", 258, 10, RED,WHITE) ' See page 300 -(frontname, style,size,foregroud color,backgroud color )
+Set Style Symbol MakeSymbol( 34, RED, 6) ' See page 681 symbol , 502 for colour
+
+'FIRST POINT TXT Generation
+Insert Into
+WindowInfo( MyWindow, WIN_INFO_TABLE) (Object)
+Values (CreateText(MyWindow,COORDSX,COORDSY,"First Node -- Long: "+COORDSX+"    Lat: "+COORDSY, 0,5,15))
+
+'Point Generation
+Insert Into
+WindowInfo( MyWindow, WIN_INFO_TABLE) (Object)
+Values (CreatePoint(COORDSX, COORDSY))
+
+'SECOND POINT TXT Generation
+Insert Into
+WindowInfo( MyWindow, WIN_INFO_TABLE) (Object)
+Values (CreateText(MyWindow,COORDSX2,COORDSY2,"Final Node -- Long: "+COORDSX2+"    Lat: "+COORDSY2, 0,5,15))
+
+'Point Generation
+Insert Into
+WindowInfo( MyWindow, WIN_INFO_TABLE) (Object)
+Values (CreatePoint(COORDSX2, COORDSY2))
+
+'DeletePoint=Ask("Delete Nodes between displayed section","YES", "NO")
+Dialog
+  Title "Delete Nodes between displayed section"
+	Position 1,1
+	Control OKButton 
+		Position 85, 10
+	Control CancelButton 
+		Position 140, 10
+		
+If CommandInfo(CMD_INFO_DLG_OK) Then
+	DeletePoint=True
+Else
+	DeletePoint=False
+End IF
+
+End Function
+
+
+
+
+
+Function AngleGeo(ByVal Lat1 As Float,ByVal Lat2 As Float,ByVal Long1 As Float,ByVal Long2 As Float) As Float
+'Inputs decimaal degress as lat long and returns angle in decimal degress
+Dim Lat1_R,Lat2_R,Long1_R, Long2_R,RetAngX,RetAngY As Float 
+
+'Radians Convert
+Lat1_R=Lat1*DEG_2_RAD
+Lat2_R=Lat2*DEG_2_RAD
+Long1_R=Long1*DEG_2_RAD
+Long2_R=Long2*DEG_2_RAD
+
+'AngleGeo=atan2(cos(Lat1_R)*sin(Lat2_R)-sin(Lat1_R)*cos(Lat2_R)*cos(Long2_R-Long1_R),sin(Long2_R-Long1_R)*cos(Lat2_R))*RAD_2_DEG
+If atan2(cos(Lat1_R)*sin(Lat2_R)-sin(Lat1_R)*cos(Lat2_R)*cos(Long2_R-Long1_R),sin(Long2_R-Long1_R)*cos(Lat2_R))*RAD_2_DEG < 0 Then
+	AngleGeo = atan2(cos(Lat1_R)*sin(Lat2_R)-sin(Lat1_R)*cos(Lat2_R)*cos(Long2_R-Long1_R),sin(Long2_R-Long1_R)*cos(Lat2_R))*RAD_2_DEG+360
+Else
+	AngleGeo=atan2(cos(Lat1_R)*sin(Lat2_R)-sin(Lat1_R)*cos(Lat2_R)*cos(Long2_R-Long1_R),sin(Long2_R-Long1_R)*cos(Lat2_R))*RAD_2_DEG
+End If
+
+End Function
+
+Function atan2 (ByVal dx as float, ByVal dy as float) as float
+dim a as float
+If dy <> 0 and dx <> 0 Then
+	If abs (dx) < EPSILON then
+		If abs (dy) < EPSILON then
+			error
+	    Else if dy < 0 then
+	    	atan2 = HALF_PI
+	    Else 
+	    	atan2 = -HALF_PI
+	    End if
+	End if
+	
+	Else a = atn (dy/dx)
+	
+	If dx < 0 then 
+		If dy < 0 then
+			atan2= a - PI
+		Else atan2 = a + PI
+	    End if
+	Else atan2 = a
+	End if
+	End if
+End If
+End function

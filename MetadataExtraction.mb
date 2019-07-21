@@ -1,0 +1,162 @@
+' Definition File 	Metadata Extraction
+' Project	        
+' Programmer:       John Worrall
+' Last UpDate:      06/11/2012      
+' Version:          AppVersion (see below)
+' Description:      Extracts metadata to report file
+' Future Works:     Create XML OGC compliant metadata file
+'					
+' Function Arguments
+
+Include "mapbasic.def"
+
+Declare Sub Main
+
+'*****************
+Sub Main
+'*****************
+Print Chr$(12) 'Clear Output
+
+'Requires LDrive to be mapped
+Dim SpatialLoc As String
+Dim TabFileLst As String
+Dim OpenTabFile As String
+
+TabFileLst = "C:\Temp\TabFiles.txt"
+SpatialLoc = "L:\spatialData\biota\fauna\aquatic\"
+
+'Run Program "CMD.EXE /c dir " & SpatialLoc & "*.tab /s /b > " & TabFileLst
+'Need to include here a wait process
+
+'CSV Log Outpu
+Dim CSV_Path As String
+Dim CSV_File As String
+
+CSV_Path = "C:\TEMP\"
+CSV_File = "Log_"+CurDate()+".csv"
+CSV_File = CSV_Path+CSV_File
+
+Open File CSV_File
+For Output As #2
+Print #2, "TableName,TableLocPath,TableRows,TableColumns,Coordinate System,Min X, Min Y, Max X, Max Y "
+
+'XML Output
+Dim XML_Path As String
+Dim XML_File As String
+Dim XML_Location As String
+
+XML_Path = "C:\TEMP\"
+
+'Metadata
+Dim TableName As String
+Dim TableCoordsys As String
+Dim TableRows As Integer
+Dim TableColumns As Integer
+Dim TableMaxX,TableMaxY As Float
+Dim TableMinX,TableMinY As Float
+Dim TableLocPath As String
+Dim CurrentTable As String
+
+'Runtime Check
+OnError Goto RuntimeExit
+
+Open File TabFileLst 
+For Input As #1
+	Do While Not EOF(1)
+		Line Input #1, OpenTabFile
+		If Not EOF(1) Then
+			CurrentTable = PathToTableName$(OpenTabFile)
+
+			'Run through Open TAB files to extract metadata
+			Open Table OpenTabFile As CurrentTable
+
+			'Name
+			TableName = TableInfo(CurrentTable, TAB_INFO_NAME)
+		
+			'Rows
+			TableRows = TableInfo(CurrentTable, TAB_INFO_NROWS)
+
+			'Columns
+			TableColumns = TableInfo(CurrentTable, TAB_INFO_NCOLS)
+
+			'MinY & MinX
+			TableMinY = TableInfo(CurrentTable, TAB_INFO_MINY)
+			TableMinX = TableInfo(CurrentTable, TAB_INFO_MINX)
+
+			'MaxX & MaxY 
+			TableMaxX = TableInfo(CurrentTable, TAB_INFO_MAXX)
+			TableMaxY = TableInfo(CurrentTable, TAB_INFO_MAXY)
+
+			'CoordSys
+			TableCoordsys = TableInfo(CurrentTable, TAB_INFO_COORDSYS_NAME)
+
+			'Location Path 
+			TableLocPath = TableInfo(CurrentTable, TAB_INFO_TABFILE)
+
+			'Data Type
+			'Version
+
+			'Check to see if there is metadata included in the table
+				If TableInfo(CurrentTable,TAB_INFO_BROWSER_LIST) <> "" Then
+					Print "THERE IS METADATA"
+				End If
+
+			'Output
+			Print ""
+			Print "Table Name: " +TableName 
+			Print "Table Number of Rows: " +TableRows
+			Print "Table Number of Columns: " +TableColumns
+			Print "Coordinate System: " +TableCoordsys
+			Print "Table Location: " +TableLocPath
+			Print "Min X and Min Y:" + TableMinX +"  "+ TableMinY
+			Print "Max X and Max Y:" + TableMaxX +"  "+ TableMaxY
+
+			'Output CSV
+			Print #2, TableName +","+ TableLocPath +","+  TableRows +","+  TableColumns +","+  TableCoordsys +","+ TableMinX +","+  TableMinY +","+  TableMaxX +","+  TableMaxY
+
+			'Output Register
+
+			'Output an XML format
+			XML_File = TableName + ".xml"
+			XML_Location = XML_Path+XML_File
+
+			'Print Chr$(44)
+			'Print "<?xml version=" + Chr$(34) + "1.0" + Chr$(34) + "encoding="+ Chr$(34) +"UTF-8"+ Chr$(34)+"?>"
+
+			'Open File XML_Location
+			'For Output As #5
+			'Print #5, "<?xml version="1.0" encoding="UTF-8"?>"
+			'Print #5, "<MD_Metadata xmlns="http://www.isotc211.org/2005/gmd" xmlns:gco="http://www.isotc211.org/2005/gco" xmlns:gmd="http://www.isotc211.org/2005/gmd" xmlns:gml="http://www.opengis.net/gml" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.isotc211.org/2005/gmd http://www.isotc211.org/2005/gmd/gmd.xsd      http://www.opengis.net/gml http://www.isotc211.org/2005/gml/gml.xsd      http://www.w3.org/1999/xlink http://www.isotc211.org/2005/xlink/xlinks.xsd">"
+			'Close File #5
+
+			'Character Output 
+			'Dim test As Integer
+			'For test=1 to 255
+			'Print chr$(test)
+			'Print test
+
+			'If FileExists("C:\Temp\Wait.txt") Then
+			'	Kill "C:\Temp\Wait.txt"
+			'End If
+
+		ResumeError: 
+		Close Table CurrentTable
+		End If
+	Loop
+
+
+
+Close File #1
+Close File #2
+
+Print "Successful............" 
+End Program
+
+
+
+RuntimeExit:
+	Print #2, TableName + ",RuntimeError"
+	Resume ResumeError
+
+End Sub
+

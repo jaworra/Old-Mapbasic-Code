@@ -1,0 +1,35 @@
+
+Include "icons.def"
+Include "mapbasic.def"
+Include "menu.def"
+
+Declare Sub Main
+'Make Menu
+Sub Main
+print chr$(12)
+Dim noTbls,i as Integer
+Dim curTbl,pathCurTbl As String 
+noTbls=numtables()
+print noTbls
+For i = 1 to noTbls
+	curTbl=TableInfo(i,TAB_INFO_NAME)
+	pathCurTbl=TableInfo(i,TAB_INFO_TABFILE)
+	If curTbl = "Regional_NT_Watercourse_Assess" or curTbl = "Regional_NT_Road_Assessments" Then
+		If FileExists ("C:\Temp\SortedTbl.tab")Then
+			Open Table "C:\Temp\SortedTbl.tab" As DeleteMe
+			Drop Table DeleteMe
+		End If
+		
+		Commit Table curTbl as "C:\Temp\SortedTbl.tab"
+		Drop Table curTbl
+		
+		Open Table "C:\Temp\SortedTbl.tab" as SortedTbl
+		Select * from SortedTbl order by Assess_Comple_date desc into tempSortTbl
+		Commit Table tempSortTbl as pathCurTbl
+		Close Table tempSortTbl
+		Close Table SortedTbl
+		Open Table pathCurTbl as curTbl
+				
+	End If
+Next
+End Sub

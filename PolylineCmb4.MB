@@ -1,0 +1,312 @@
+'====================================================================================================================	'
+' Programmer:       John Worrall																						'
+' Last Update:      17/01/2012																							'
+'																														'	
+' Description:    																										'
+'  - Combines polylines with the same node at start and end																'									'
+																														'
+																														'
+' Furture Works - Combined sub functions 																				'
+'               - Option for user entry or select of files to process												    '
+' Bugs 		 																									   		'
+'====================================================================================================================	'
+'
+'                      .         .                           
+'8888888 8888888888   ,8.       ,8.          8 888888888o.   
+'      8 8888        ,888.     ,888.         8 8888    `88.  
+'      8 8888       .`8888.   .`8888.        8 8888     `88  
+'      8 8888      ,8.`8888. ,8.`8888.       8 8888     ,88  
+'      8 8888     ,8'8.`8888,8^8.`8888.      8 8888.   ,88'  
+'      8 8888    ,8' `8.`8888' `8.`8888.     8 888888888P'   
+'      8 8888   ,8'   `8.`88'   `8.`8888.    8 8888`8b       
+'      8 8888  ,8'     `8.`'     `8.`8888.   8 8888 `8b.     
+'      8 8888 ,8'       `8        `8.`8888.  8 8888   `8b.   
+'      8 8888,8'         `         `8.`8888. 8 8888     `88. 
+
+'                                                                                                                                                                                                                       
+'     ,o888888o.    8 8888888888       ,o888888o.       d888888o.   8 888888888o 8888888 8888888888   .8.           8 8888 8 8888                   8888888 8888888888 8 8888888888       ,o888888o.    8 8888        8 
+'    8888     `88.  8 8888          . 8888     `88.   .`8888:' `88. 8 8888    `88.     8 8888        .888.          8 8888 8 8888                         8 8888       8 8888            8888     `88.  8 8888        8 
+' ,8 8888       `8. 8 8888         ,8 8888       `8b  8.`8888.   Y8 8 8888     `88     8 8888       :88888.         8 8888 8 8888                         8 8888       8 8888         ,8 8888       `8. 8 8888        8 
+' 88 8888           8 8888         88 8888        `8b `8.`8888.     8 8888     ,88     8 8888      . `88888.        8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888        8 
+' 88 8888           8 888888888888 88 8888         88  `8.`8888.    8 8888.   ,88'     8 8888     .8. `88888.       8 8888 8 8888                         8 8888       8 888888888888 88 8888           8 8888        8 
+' 88 8888           8 8888         88 8888         88   `8.`8888.   8 888888888P'      8 8888    .8`8. `88888.      8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888        8 
+' 88 8888   8888888 8 8888         88 8888        ,8P    `8.`8888.  8 8888             8 8888   .8' `8. `88888.     8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888888888888 
+' `8 8888       .8' 8 8888         `8 8888       ,8P 8b   `8.`8888. 8 8888             8 8888  .8'   `8. `88888.    8 8888 8 8888                         8 8888       8 8888         `8 8888       .8' 8 8888        8 
+'    8888     ,88'  8 8888          ` 8888     ,88'  `8b.  ;8.`8888 8 8888             8 8888 .888888888. `88888.   8 8888 8 8888                         8 8888       8 8888            8888     ,88'  8 8888        8 
+'     `8888888P'    8 888888888888     `8888888P'     `Y8888P ,88P' 8 8888             8 8888.8'       `8. `88888.  8 8888 8 888888888888                 8 8888       8 888888888888     `8888888P'    8 8888        8 
+'
+'
+'================================================================================================================='
+
+
+'*********************Library*********************************************
+Include "mapbasic.def"
+
+'*********************Global Variables************************************
+Global EditTable As String
+Global EditTableLocation As String
+Global ApplicationFolder As String
+Global HardDriveFolder As String
+
+
+Declare Sub Main
+
+Sub Main
+Print Chr$(12)
+
+ApplicationFolder = ApplicationDirectory$()
+HardDriveFolder = "C:\TEMP\"
+EditTable = "PolylineCmb"
+EditTableLocation = HardDriveFolder+"PolylineCmb"
+
+
+'Check and clear any left data from previous runs...
+Dim s_Worm,e_Worm As Float
+Dim x_searchfor,users_ans As Integer
+Dim users_TB As String 'Road to search for   Delete
+Dim FirstDialogAn As SmallInt
+Dim TableCnt,IVar As Integer
+Dim OpenTableNs() As String
+Dim CmbObject As Object
+Dim UserBrowsePathFnl As String,ChosenTblNm As String
+Dim ChosenTblID As Integer
+Dim TableColmn() As String
+Dim JVar, ColmCnt As Integer
+Dim i As Integer
+Dim j As Integer
+Dim k As Integer
+Dim l As Integer
+
+TableCnt = NumTables()
+
+'Check if table PolylineCmb is open current mapper
+For IVar = 1 To TableCnt
+	'Print TableInfo(IVar,TAB_INFO_NAME)
+	If (TableInfo(IVar,TAB_INFO_NAME) = EditTable ) Then
+	Close Table PolylineCmb
+	End If
+Next
+
+'Checks for previous created tables and delete
+If FileExists(EditTableLocation+".TAB") Then
+	Kill "C:\TEMP\PolylineCmb.TAB"
+	Kill "C:\TEMP\PolylineCmb.ID"
+	Kill "C:\TEMP\PolylineCmb.MAP"
+	Kill "C:\TEMP\PolylineCmb.DAT"
+End If
+
+
+'Create new table to do edits
+Create Table EditTable
+( townname Char(30) )
+	File EditTableLocation+".tab"
+Create Map For EditTable
+Open Table EditTableLocation+".TAB" Interactive
+
+
+'*********************Dialog Box************************************
+
+'Inquire and set variables based on current mapper
+TableCnt = NumTables()
+ReDim OpenTableNs(TableCnt)
+For IVar = 1 To TableCnt
+OpenTableNs(IVar) = TableInfo(IVar,TAB_INFO_NAME)
+'Print OpenTableNs(IVar)
+Next
+
+
+Dim ColRdID,ColSCHID,ColECHID As Integer
+
+Dialog
+Title "Select Table for Polyline Combine"
+Control StaticText ID 2001 Title "Table to process:" Position 15, 20
+Control ListBox Title From Variable OpenTableNs Into IVar ID 2003 Width 180 Position 80,20 Value 1 Into ColRdID
+
+Control OKButton Position 280,120
+Control CancelButton Position 325,120
+Control GroupBox Title "Table Select"Position 5,2 Width 370 Height 150
+If CommandInfo(CMD_INFO_DLG_OK)Then
+
+
+'*********************Geoprocessing************************************
+
+' Count on SelTable attributes
+i = 0 
+	Fetch First From OpenTableNs(ColRdID)
+		Do While Not EOT(OpenTableNs(ColRdID))
+			i = i + 1 
+			Fetch Next From OpenTableNs(ColRdID)
+		Loop 
+
+Print "Number of records in table "+OpenTableNs(ColRdID)+" is: " + i 
+
+
+'Objects to compare
+Dim TestA,TestB as Object
+Dim LineObjectClac As Object
+Dim LineObjectClacCmb As Object
+Dim PreviousLineCheck As Logical
+
+Dim FinalObject As Object
+
+PreviousLineCheck = false
+For j=1 to i	'First loop - J
+				For k=1 to i 	'Second loop - k
+					
+							   If k = 1 Then 'Runs once in the start to intisalise (1-1)	
+							   		Print "---------------------------------------------------------------------------------------------"	
+									Print "Counter    J:"+j+"  K:"+k   
+									
+									'Select objects from row 
+									Select * from OpenTableNs(ColRdID) where RowID = j Into SelectionA
+									LineObjectClac = SelectionA.obj	
+									CmbObject = LineObjectClac
+									Print "1-1"
+							   End If					
+						
+						
+								If j <> k and k <> 1 Then 'Check condition for exceptions  (1-2,1-3,1-4 etc 2-3,2-4 etc)
+								Print "Counter    J:"+j+"  K:"+k  'Debug
+
+									'Adds previous intersect object to current checcks		
+									Select * from OpenTableNs(ColRdID) where RowID = k Into SelectionB
+									TestB = SelectionB.obj
+									
+									'Saves polyline object of end pont of segements
+									LineObjectClacCmb = IntersectNodes(CmbObject, TestB, INCL_ALL ) ' Combines line object
+									
+													If j >1 Then		' Checks all loops other than 1, for intersection and adds (1-2,1-3,1-4 etc
+																		' Checks no intersection with previous lines
+													
+																	For l=j to 1 Step -1	'Runs back from current row
+																	
+																					If j <> l Then
+																					print l	
+																					
+																									'Select objects from row
+																									Select * from OpenTableNs(ColRdID) where RowID = l Into SelectionA
+																									TestA = SelectionA.obj
+																									LineObjectClac = IntersectNodes(TestA, LineObjectClacCmb, INCL_ALL )
+																										
+																													'Checks to see if lines intersect previous values
+																													If ObjectInfo(LineObjectClac ,OBJ_INFO_NPNTS) = 0 Then
+																													Print "Intersects4"
+																													PreviousLineCheck = False ' Sets False
+																													End If		
+																					End If
+																	Next
+																					If PreviousLineCheck = False Then
+																					Print "interesction5"
+																					CmbObject = Combine(CmbObject,TestB) ' Combine Objects
+																					End If
+																					'PreviousLineCheck = True	
+													End If
+													
+								End If	
+								
+								' Append combined lines to new row
+								If k =i Then
+											If PreviousLineCheck = False Then
+											Insert Into PolylineCmb (Obj) 
+											Values(CmbObject)
+											End If
+								Print PreviousLineCheck
+								PreviousLineCheck = True
+								End If 
+			
+				Next
+If j=1 then
+	Exit Sub
+End If
+Next
+
+
+
+End If
+Exit Sub
+
+
+'---------------------- Run Selected table rows
+
+' Check objects nodes of polylines of same nodes
+Dim j1,k1 as Integer
+j1 = 0
+k1 = 0
+j = 1
+k = 1
+
+'First loop - J
+For j=1 to i
+
+'Second loop -K
+For k=1 to i
+
+Print "J-loop:"+J+"  K-loop:"+K+"     ------ COUNTER"   
+
+'Select statement here
+If j <> k Then
+
+'Fetch Rec j From OpenTableNs(ColRdID) Into SelectionA
+'Fetch Rec i From OpenTableNs(ColRdID) Into SelectionB
+
+
+'Saves Objects A&B to compare
+Select * from OpenTableNs(ColRdID) where RowID = j Into SelectionA
+TestA = SelectionA.obj
+Select * from OpenTableNs(ColRdID) where RowID = k Into SelectionB
+TestB = SelectionB.obj
+'Select * from SelectionA,SelectionB where SelectionA.Obj Intersects SelectionB.Obj Into SelectionResults
+
+'Saves polyline object of end pont of segements
+LineObjectClac= IntersectNodes(TestA, TestB, INCL_ALL )
+
+'If there are nodes in the create polyine 
+If ObjectInfo(LineObjectClac ,OBJ_INFO_NPNTS) > 0 Then
+
+'Test here so the same line objects are not repeated twice
+	If j1 <> k and k1 <> j then
+	Print "Trigger - Objects are not repeated"
+
+	CmbObject = Combine(TestA,TestB)
+	Insert Into PolylineCmb (Obj) 
+	Values(CmbObject)
+
+	j1 = j
+	k1 = k
+	End If
+
+End If
+
+'exit sub
+
+Print J+"J"
+Print K+"K"
+Print ObjectInfo(TestA ,OBJ_INFO_NPNTS)+"POINT A"
+Print ObjectInfo(TestB ,OBJ_INFO_NPNTS)+"POINT B"
+
+Dim IntsecObj as Object
+IntsecObj = IntersectNodes( TestA, TestB,INCL_CROSSINGS)
+
+Print ObjectInfo(IntsecObj,OBJ_INFO_NPNTS)
+
+
+
+'Select where TestA Intersects TestB Into SelectionResults
+'Select * from OpenTableNs(ColRdID) where RowID = j Intersects Select * from OpenTableNs(ColRdID) where RowID = k into Test
+
+End If
+
+Next
+
+Next
+
+Close Table SelectionA 
+Close Table SelectionB 
+commit table PolylineCmb
+'Else
+'End If
+
+End Sub
+
+
+

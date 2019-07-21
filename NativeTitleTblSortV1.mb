@@ -1,0 +1,84 @@
+' Programmer:       John Worrall
+' Date:             04/07/2012
+' Description:      Sorts native title tables by dates specified. 
+
+Include "icons.def"
+Include "mapbasic.def"
+Include "menu.def"
+
+Declare Sub Main
+Declare Sub SortTbls
+
+Sub Main
+Create ButtonPad "Custom1" As PushButton
+Icon MI_ICON_MB_11  
+Calling SortTbls
+HelpMsg "Sort Date in Descending Order\n"
+Alter ButtonPad "Custom1" Fixed ToolbarPosition (2,0)
+End Sub
+
+Sub SortTbls
+print chr$(12)
+Dim noTbls,i,k,win_id as Integer
+Dim curTbl,pathCurTbl,tempTbl As String 
+Dim arryTbl(1) As String 
+Dim succesRun as Logical
+
+win_id = FrontWindow()
+noTbls=numtables()
+Redim arryTbl(noTbls)
+
+k=0
+For i = 1 to noTbls
+	curTbl=TableInfo(i,TAB_INFO_NAME)
+	If curTbl = "Regional_NT_Watercourse_Assess" or curTbl = "Regional_NT_Road_Assessments" or curTbl = "Regional_NT_Property_Assessmen"  Then
+		k=k+1
+		arryTbl(k)=curTbl
+	End If
+Next
+
+OnError Goto SortTblError
+Redim arryTbl(k)
+For i=1 to k
+	
+	curTbl=TableInfo(arryTbl(i),TAB_INFO_NAME)
+	pathCurTbl=TableInfo(arryTbl(i),TAB_INFO_TABFILE)
+	
+	If FileExists ("C:\Temp\SortedTbl.tab")Then
+	Open Table "C:\Temp\SortedTbl.tab" As DeleteMe
+		Drop Table DeleteMe
+	End If
+	
+	'Save temp,sort and replace
+	Print "Sorting "+curTbl+" by decreasing date..."
+	Commit Table arryTbl(i) as "C:\Temp\SortedTbl.tab"	
+	Open Table "C:\Temp\SortedTbl.tab" as tempSavedTbl
+	Select * from tempSavedTbl order by Date_Completed desc into tempSortTbl
+	Drop Table arryTbl(i)
+	Commit Table tempSortTbl as pathCurTbl
+	Close Table tempSortTbl
+	Close Table tempSavedTbl
+	Open Table pathCurTbl as curTbl
+	Print "Succesfull"+chr$(10)
+	
+	'add new tbl to window
+	Add Map Auto Layer curTbl
+	AfterSortTblError:
+Next
+
+If succesRun = True Then
+	Print chr$(10)+"Successfully completed!"
+Else
+	Print chr$(10)+"Error occured"
+	Print "Contatct Geospatial Technologies"
+	Print "John Worrall E: john.a.worrall@tmr.qld.gov.au "
+End If 
+
+Exit Sub
+SortTblError:
+Print "Unsuccesfull"+chr$(10)
+
+succesRun = False
+Close Table tempSavedTbl
+Resume AfterSortTblError
+End Sub

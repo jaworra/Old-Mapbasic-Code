@@ -1,0 +1,99 @@
+' Program to remove erronous nodes from GPS
+' Programmer: John Worall
+' Date:             050/12/2014
+' Description:    David Dance Request for GPS geometry QA
+' To Add: Buffer on Polygon to check and polyline capabiliies
+' Requirments : QLD boundary and Polygon Geometry
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+Include "icons.def"
+'*************************************************************
+Declare Sub Main
+
+Declare Sub QAOnTbl
+
+Sub Main
+
+Create ButtonPad "Custom1" As PushButton
+Icon MI_ICON_COMMUNICATION_4   
+Calling QAOnTbl
+HelpMsg "Perform QA on Table"
+
+End Sub
+
+
+Sub QAOnTbl
+
+Dim CutterTbl As String
+Dim QAObj,AdjObj,QldObj,Node As Object
+Dim x,n,Dist,i,j,k as Integer
+Dim NodeKeep as Logical
+Print Chr$(12)
+
+Dim Xn(10000),Yn(10000) As Float
+
+Close All
+CutterTbl=FileOpenDlg("E:\DCDB_Fix", "", "TAB", "Select Dataset to do QA")
+Open Table CutterTbl As CutTbl
+Open Table "L:\spatialData\boundaries\states\qld.TAB" As QLDTbl
+QldObj=QLDTbl.obj
+x=1
+i=1
+Fetch First From CutTbl
+Do While Not EOT(CutTbl)
+	QAObj=CutTbl.obj
+	'AdjObj=QAObj
+	Create Region into Variable AdjObj 0
+	
+	If ObjectInfo(QAObj,OBJ_INFO_TYPE) = 7 Then 'Close Polygon
+		'Print ProportionOverlap(QAObj,QldObj)
+		
+		If ProportionOverlap(QAObj,QldObj) = 1 Then
+			Print "No Overlaps"
+			
+		Else 
+			Print "QA required on Object in Row: " + x
+			Print "     Number of Nodes in Object: "  & ObjectInfo(QAObj,OBJ_INFO_NPNTS)
+			
+			For n =1 to ObjectInfo(QAObj,OBJ_INFO_NPNTS)
+				Create Point Into Variable Node (ObjectNodeX(QAObj,1,n),ObjectNodeY(QAObj,1,n))
+				'Print "     Node Location:" & ObjectNodeX(QAObj,1, n) & "  " & ObjectNodeY(QAObj,1, n)
+			   ' Print ObjectDistance(Node,QldObj,"m")
+			   Print "     Processing Node: " & n
+				
+				If ObjectDistance(Node,QldObj,"m") > 0 Then 'Remove Node
+ 					Print "#### Removing NODE: " & n & "  Distance from QA Boundary:" & ObjectDistance(Node,QldObj,"m")	 & "  Location: " & ObjectNodeX(QAObj,1, n) & "  " & ObjectNodeY(QAObj,1, n)	
+				Else 'All nodes within polygon
+				
+					Xn(i)= ObjectNodeX(QAObj,1,n)	
+					Yn(i)= ObjectNodeY(QAObj,1,n)	
+					NodeKeep=True
+					i=i+1
+				End If
+			Next
+			
+		End If
+	End If
+
+	If NodeKeep=True Then 
+		For j=1 to i-1
+			Alter Object AdjObj Node Add (Xn(j),Yn(j))
+		Next
+	Update CutTbl Set Obj = AdjObj Where Rowid = x	
+	Commit Table CutTbl 	
+	End If
+	
+	NodeKeep=False
+	x=x+1
+	Fetch Next From CutTbl
+Loop
+
+Map From CutTbl, QLDTbl
+Set Map Zoom Entire Layer 1
+Print "--------------------------------------------------------------------------------------------------------------------"
+Print "Succesfully Finished"
+Print "--------------------------------------------------------------------------------------------------------------------"
+
+End Sub

@@ -1,0 +1,1492 @@
+' Definition File 	Sub Routine
+' Project	        
+' Programmer:       John Worrall
+' Last UpDate:      23/11/2012      
+' Version:          AppVersion (see below)
+' Description:      Polyline Create and Attribute assignement for NPI line generation
+'					
+' Revision 3: removed SC roads and LGA analysis, updated coordinate validation to include only foat values with  
+'			  minimum of 4 significant values.
+'				
+' Function Arguments
+
+include "menu.def"
+include "mapbasic.def"
+include "icons.def"
+
+Declare Sub Main
+Declare Sub ImportCSV 
+Declare Function TimerPrint(ByVal StartTimer As Integer) As String
+Declare Function LatLong2Bearing(ByVal Lat1 As Float,ByVal Long1 As Float, ByVal Lat2 As Float, ByVal Long2 As Float) As Float
+Declare Function CheckLineRef(ByVal Lat1 As Float,ByVal Long1 As Float, ByVal Lat2 As Float, ByVal Long2 As Float, ByVal IntLat As Float, ByVal IntLong As Float, ByVal IntLat2 As Float, ByVal IntLong2 As Float, ByVal BearingInt As Float) As Integer 'Return 1 for true 0 for false
+Declare Sub ExitSub
+Declare Sub AboutSub
+Declare Sub ValidateLinks
+Declare Sub GetAccessFileNPI
+Declare Sub GetAccessFileLINK
+Declare Sub SortingLinks
+Declare Sub IncidentToNode
+Declare Sub ValidateLineDirection
+Declare Sub IncidentToNPI
+
+Global versionTxt As String 
+Global versionDate As String 
+Global numberVerticesReq As Integer
+Global AccessPointFile As String
+
+Sub Main
+versionTxt =""
+versionDate =""
+numberVerticesReq = 2 ' The number of vertices required to fall on line 
+
+Create Menu "NPI Links" As
+	"Create Polyline form csv" Calling ImportCSV,
+	"(-",
+	"Sorting Algorithm" Calling SortingLinks,
+	"Validate Links" Calling ValidateLinks,
+	"Incidents to Node" Calling IncidentToNode,
+	"Validate NPI Direction" Calling ValidateLineDirection,
+	"Match Incident" Calling IncidentToNPI,
+	"(-",
+	"About" Calling AboutSub,
+	"Exit" Calling ExitSub
+Alter Menu Bar Add "NPI Links"
+End Sub	
+
+Sub IncidentToNPI
+Dim IncidentsObj,NPILinkObj as object
+Dim IncidentTbl,NPITbl,ResultsTbl,TempTbl,TempTbl2,LogFile as String	
+Dim StartTimer As Integer
+Dim StartTime As Time
+Dim StartDate As Date
+Dim StartDT As datetime
+
+'Initialise Time
+StartTimer = Timer()
+StartTime = Time (24)
+StartDate = CurDate()
+StartDT = MakeDateTime(StartDate,StartTime)
+
+Close all
+Print Chr$(12)
+IncidentTbl="C:\Documents and Settings\jaworra\Desktop\NPI\TAB\Incidents.TAB"
+NPITbl="C:\Documents and Settings\jaworra\Desktop\NPI\TAB\Links_Validated_Polyline.TAB"
+ResultsTbl=PathToDirectory$("ResultsNear.TAB")+"IncidentToNPI"
+TempTbl=PathToDirectory$("ResultsNear.TAB")+"TempTbl"
+TempTbl2=PathToDirectory$(NPITbl)+"Temp2Table.tab"
+LogFile=PathToDirectory$(NPITbl)+"IncidentToNPI.log"
+
+Open Table IncidentTbl As Incidents 'Incidients
+Open Table NPITbl As NPILinks 'NPI Links
+
+If fileExists(ResultsTbl)then
+	Open Table ResultsTbl as DeleteMe
+	Drop Table DeleteMe
+End If
+If fileExists(TempTbl)then
+	Open Table TempTbl as DeleteMe
+	Drop Table DeleteMe
+End If
+If fileExists(LogFile)then
+	Kill LogFile
+End If
+
+Commit Table Incidents As ResultsTbl
+Open Table ResultsTbl As Results
+Delete from Results
+Commit Table Results
+Pack Table Results Graphic Data
+Commit Table Results As TempTbl
+Open Table TempTbl As TempResults
+
+Open File LogFile
+For Output As #1
+Print #1, "-----  Processing IncidentToNPI Commenced  ----- "
+Print #1, "## "+FormatDate$(GetDate(StartDate))+" "+FormatTime$(GetTime(StartTime), "hh:mm:ss.fff tt")
+Print #1, "## Incidents without a Match" 
+Print #1, ""
+
+Dim IIdentifier,IType,IClassification,ITime_Logged,IRoad,IEvent_Status,IDistrict,IStart_Detected_Time,IEnd_Time,IX,IY,IRoad_Owner,IIntersection,IOpp_Link_Affected,IDirection,IVerified_Time,IAssist_Req_Time As String
+Dim IAssist_Arr_Time,INo__Lanes_Blocked,ILateral_Position,IOpp_Lanes_Blocked,IBlockage_Type,IIncident_Category,ISeverity_Category,IDelay,IIncident_Cleared_Time,ITime_Logged__Date_,ITime_Logged__Time_ As String
+Dim IStart_Detected_Time__Date_,IStart_Detected_Time__Time_,IEnd_Time__Date_,IEnd_Time__Time_,IVerified_Time__Date_,IVerified_Time__Time_,IAssist_Req_Time__Date_,IAssist_Req_Time__Time_,IAssist_Arr_Time__Date_ As String 
+Dim IAssist_Arr_Time__Time_,IIncident_Cleared_Time__Date_,IIncident_Cleared_Time__Time_,IEnd_Time___Date,IStart_Time___Date2,IDuration As String 
+Dim i,j,k,MinNodeNum,NextNodeNumm,TotalNodes as Integer
+Dim MinDist,MinNodeDist As Float
+Dim Lat1,Lat2,Lon1,Lon2,IntLat,IntLong,IntLat2,IntLong2,IntBrg,D1,D2,D3 As Float
+Dim OutputID As String
+Dim LinkObj As Object
+
+OnError Goto SkipRow
+
+Fetch First from Incidents 
+Do while Not EOT(Incidents)
+	IncidentsObj = Incidents.obj
+	IIdentifier = Incidents.col1
+	IType  = Incidents.col2
+	IClassification = Incidents.col3
+	ITime_Logged = Incidents.col4
+	IRoad = Incidents.col5
+	IEvent_Status  = Incidents.col6
+	IDistrict = Incidents.col7
+	IStart_Detected_Time  = Incidents.col8
+	IEnd_Time = Incidents.col9
+	IX = Incidents.col10
+	IY  = Incidents.col11
+	IRoad_Owner = Incidents.col12
+	IIntersection = Incidents.col13
+	IOpp_Link_Affected = Incidents.col14
+	IDirection = Incidents.col15
+	IVerified_Time = Incidents.col16
+	IAssist_Req_Time = Incidents.col17
+	IAssist_Arr_Time = Incidents.col18
+	INo__Lanes_Blocked = Incidents.col19
+	ILateral_Position = Incidents.col20
+	IOpp_Lanes_Blocked = Incidents.col21
+	IBlockage_Type = Incidents.col22
+	IIncident_Category = Incidents.col23
+	ISeverity_Category = Incidents.col24
+	IDelay = Incidents.col25
+	IIncident_Cleared_Time = Incidents.col26
+	ITime_Logged__Date_  = Incidents.col27
+	ITime_Logged__Time_  = Incidents.col28
+	IStart_Detected_Time__Date_ = Incidents.col29
+	IStart_Detected_Time__Time_ = Incidents.col30
+	IEnd_Time__Date_ = Incidents.col31
+	IEnd_Time__Time_ = Incidents.col32
+	IVerified_Time__Date_ = Incidents.col33
+	IVerified_Time__Time_ = Incidents.col34
+	IAssist_Req_Time__Date_ = Incidents.col35
+	IAssist_Req_Time__Time_ = Incidents.col36
+	IAssist_Arr_Time__Date_ = Incidents.col37
+	IAssist_Arr_Time__Time_ = Incidents.col38
+	IIncident_Cleared_Time__Date_ = Incidents.col39
+	IIncident_Cleared_Time__Time_ = Incidents.col40
+	IEnd_Time___Date = Incidents.col41
+	IStart_Time___Date2 = Incidents.col42
+	IDuration= Incidents.col43
+	i=i+1
+	'Delete from TempResults
+	'Commit Table TempResults
+	'Pack Table TempResults Graphic Data
+	
+	If i>50 Then
+		Print "Premature!!"
+		Exit Sub
+	End If		
+	Print "=============================="
+	Print "Row: "+i+"    ID: "+IIdentifier 
+	Nearest 30 From Variable IncidentsObj to NPILinks Into TempResults Ignore Max 40 Units "m" Data Node_Id=NPILinks.ID,Identifier=IIdentifier,Type=IType,Classification=IClassification,Time_Logged=ITime_Logged,Road=IRoad,Event_Status=IEvent_Status,District=IDistrict,Start_Detected_Time=IStart_Detected_Time,End_Time=IEnd_Time,X=IX,Y=IY,Road_Owner=IRoad_Owner,Intersection=IIntersection,Opp_Link_Affected=IOpp_Link_Affected,Direction=IDirection,Verified_Time=IVerified_Time,Assist_Req_Time=IAssist_Req_Time,Assist_Arr_Time=IAssist_Arr_Time,No__Lanes_Blocked=INo__Lanes_Blocked,Lateral_Position=ILateral_Position,Opp_Lanes_Blocked=IOpp_Lanes_Blocked,Blockage_Type=IBlockage_Type,Incident_Category=IIncident_Category,Severity_Category=ISeverity_Category,Delay=IDelay,Incident_Cleared_Time=IIncident_Cleared_Time,Time_Logged__Date_=ITime_Logged__Date_,Time_Logged__Time_=ITime_Logged__Time_,Start_Detected_Time__Date_=IStart_Detected_Time__Date_,Start_Detected_Time__Time_=IStart_Detected_Time__Time_,End_Time__Date_=IEnd_Time__Date_,End_Time__Time_=IEnd_Time__Time_,Verified_Time__Date_=IVerified_Time__Date_,Verified_Time__Time_=IVerified_Time__Time_,Assist_Req_Time__Date_=IAssist_Req_Time__Date_,Assist_Req_Time__Time_=IAssist_Req_Time__Time_,Assist_Arr_Time__Date_=IAssist_Arr_Time__Date_,Assist_Arr_Time__Time_=IAssist_Arr_Time__Time_,Incident_Cleared_Time__Date_=IIncident_Cleared_Time__Date_,Incident_Cleared_Time__Time_=IIncident_Cleared_Time__Time_,End_Time___Date=IEnd_Time___Date,Start_Time___Date2=IStart_Time___Date2,Duration=IDuration
+	Commit Table TempResults
+	Update TempResults Set Dist_m=ObjectLen(obj,"m")
+	'Commit Table TempResults
+			
+	MinDist=30
+	Fetch First from TempResults 	'Keep the closes values returned from nearest command (Select all return nearest objects and delete where if the distances are larger than the smallest value)
+	Do while Not EOT(TempResults)
+		If MinDist>TempResults.Dist_m Then
+			MinDist=TempResults.Dist_m 
+		End If
+	Fetch Next From TempResults
+	Loop
+	Print "Min dist To NPI Link: "+MinDist
+	Select * From TempResults Where Dist_m <> MinDist into TempSelection
+	If TableInfo(TempSelection,TAB_INFO_NROWS)>0 Then
+		Print "Deleting records greater than min dist....." 	
+	End If
+	Delete From TempSelection
+	Close Table TempSelection
+	
+	'Get Rid of updates - Save local copy and delete current table
+	Commit Table TempResults
+	Pack Table TempResults Graphic Data
+	
+	'Output Values where there is only one row
+	If TableInfo(TempResults,TAB_INFO_NROWS)=1 Then 'Save to ouput table if there is only one object(row)
+		Print "**************************"
+		Print " No Analysis - Single NPI link Found"
+		Insert Into Results 
+			Select * from TempResults
+	ElseIf TableInfo(TempResults,TAB_INFO_NROWS)=2 Then
+		Print "**************************"
+		Print " Analysis Required - Two NPI link Found"
+			 Fetch First from TempResults ' Find the closest node to nearest line object
+			 Do while Not EOT(TempResults)
+			 	Print TempResults.Node_Id+" Checking..."	
+			 	Lon1=ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGX)
+				Lat1=ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGY)
+				Lon2=ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDX)
+				Lat2=ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDY)
+			 	Print "Nearest line Info: StartX:"+Lon1+" StartY:"+Lat1+" EndX:"+Lon2+" EndY:"+Lat2
+				Print "Dist: "+ACOS(SIN(Lat1)*SIN(Lat2)+COS(Lat1)*COS(Lat2)*COS(Lon2-Lon1))*6371 'Distance
+				Print "Bearing: "+(ACOS(SIN(Lon1)*COS(Lat2)/COS(Lat1)*Sin(Lat2)-Sin(Lat1)*COS(Lat2)*COS(Lon1))+180) Mod 360 'Bearing
+				'Find NPI Link and run through all nodes to determine closes
+'				Print ObjectInfo(TempResults.obj,OBJ_INFO_TYPE)
+'				If IIdentifier ="12SIT009604I" Then 'Debuggin here
+'					Print TempResults.Node_Id
+'					Run Command "Select * from "+NPILinks+" where ID = "+TempResults.Node_Id+" into QueryNPILine"
+'					LinkObj = QueryNPILine.obj
+'					Print ObjectInfo(LinkObj,OBJ_INFO_TYPE)
+'					If ObjectInfo(LinkObj,OBJ_INFO_TYPE) = 3 Then 
+'						TotalNodes = 2
+'					Else
+'						TotalNodes = ObjectInfo(LinkObj,OBJ_INFO_NPNTS)
+'					End If
+'					Print "Number of points: "+ObjectInfo(LinkObj,OBJ_INFO_NPNTS)+" .Searching..."
+'					Exit Sub
+'					Print  "Number of points: "+ObjectInfo(Selection.obj,OBJ_INFO_NPNTS)+" .Searching..."
+'				End If
+				
+				Run Command "Select * from "+NPILinks+" where ID = "+TempResults.Node_Id+" into QueryNPILine" 'Find NPI object and the two closes nodes
+				LinkObj = QueryNPILine.obj
+				If ObjectInfo(LinkObj,OBJ_INFO_TYPE) = 3 Then 
+					TotalNodes = 2
+					Print "Lines"
+				Else
+					TotalNodes = ObjectInfo(LinkObj,OBJ_INFO_NPNTS)
+					Print  "Number of points: "+ObjectInfo(LinkObj,OBJ_INFO_NPNTS)+" .Searching..."
+				End If				
+					
+				'For j=1 to ObjectInfo(Selection.obj,OBJ_INFO_NPNTS)
+				For j=1 to TotalNodes
+					If j=1 Then 'assign the minimum distance to the first node.
+						MinNodeDist=SphericalDistance(ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDX),ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDY),ObjectNodeX(Selection.obj,1,j),ObjectNodeY(Selection.obj,1,j),"m")
+						MinNodeNum=1
+					Else
+						If MinNodeDist > SphericalDistance(ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDX),ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDY),ObjectNodeX(Selection.obj,1,j),ObjectNodeY(Selection.obj,1,j),"m") Then
+							MinNodeNum=j
+							MinNodeDist=SphericalDistance(ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDX),ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDY),ObjectNodeX(Selection.obj,1,j),ObjectNodeY(Selection.obj,1,j),"m")
+						End If
+					End If
+				Next
+				Print "Smallest dist: "+MinNodeDist+". At node "+MinNodeNum
+				'From the closest node locate the second closes.
+				If MinNodeNum = 1 Then 'If the closes node is the first then the second node along the line is the second closes 
+					Print "Second closes node is 2"
+					Lat1=ObjectNodeY(Selection.obj,1,MinNodeNum)
+					Lon1=ObjectNodeX(Selection.obj,1,MinNodeNum)
+					Lat2=ObjectNodeY(Selection.obj,1,MinNodeNum+1)
+					Lon2=ObjectNodeX(Selection.obj,1,MinNodeNum+1)				
+					IntLat=ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGY)
+					IntLong=ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGX)
+					IntLat2=ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDY)
+					IntLong2=ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDX)
+					IntBrg=LatLong2Bearing(ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGY),ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGX),ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDY),ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDX))
+					Print "Bearing of Nearest Line: "+IntBrg
+					If CheckLineRef(Lat1,Lon1,Lat2,Lon2,IntLat,IntLong,IntLat2,IntLong2,IntBrg)=1 Then
+						Print "################Successful Line Match################"
+						Run Command "Select * from "+TempResults+" where Node_Id = "+chr$(34)+TempResults.Node_Id+chr$(34)+" into ToAdd"
+						Insert Into Results 
+							Select * from ToAdd
+						Close Table ToAdd	
+					End If
+				'ElseIf MinNodeNum=ObjectInfo(Selection.obj,OBJ_INFO_NPNTS) Then 'The closes point is the last node
+				ElseIf MinNodeNum=TotalNodes Then 'The closes point is the last node
+					Print "Second closes node is the 2nd last"
+					Lat1=ObjectNodeY(Selection.obj,1,MinNodeNum-1)
+					Lon1=ObjectNodeX(Selection.obj,1,MinNodeNum-1)	
+					Lat2=ObjectNodeY(Selection.obj,1,MinNodeNum)
+					Lon2=ObjectNodeX(Selection.obj,1,MinNodeNum)
+					IntLat=ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGY)
+					IntLong=ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGX)
+					IntLat2=ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDY)
+					IntLong2=ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDX)
+					IntBrg=LatLong2Bearing(ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGY),ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGX),ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDY),ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDX))
+					Print "Bearing of Nearest Line: "+IntBrg
+					If CheckLineRef(Lat1,Lon1,Lat2,Lon2,IntLat,IntLong,IntLat2,IntLong2,IntBrg)=1 Then
+						Print "################Successful Line Match################"
+						Run Command "Select * from "+TempResults+" where Node_Id = "+chr$(34)+TempResults.Node_Id+chr$(34)+" into ToAdd"
+						Insert Into Results 
+							Select * from ToAdd
+						Close Table ToAdd
+					End If			
+				Else 
+					Print "Searching for next node."'All other nodes. i.e. not first or last		
+					IntLat=ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGY)
+					IntLong=ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGX)	
+					IntLat2=ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDY)
+					IntLong2=ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDX)
+					IntBrg=LatLong2Bearing(ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGY),ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGX),ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDY),ObjectGeography(TempResults.obj,OBJ_GEO_LINEENDX))				
+					D1=SphericalDistance(ObjectNodeX(Selection.obj,1,MinNodeNum),ObjectNodeY(Selection.obj,1,MinNodeNum),ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGX),ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGY),"m")'Distance between first node and interection
+					D2=SphericalDistance(ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGX),ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGY),ObjectNodeX(Selection.obj,1,MinNodeNum+1),ObjectNodeY(Selection.obj,1,MinNodeNum+1),"m") 'Distance between possible second node and intersection
+					D3=SphericalDistance(ObjectNodeX(Selection.obj,1,MinNodeNum),ObjectNodeY(Selection.obj,1,MinNodeNum),ObjectNodeX(Selection.obj,1,MinNodeNum+1),ObjectNodeY(Selection.obj,1,MinNodeNum+1),"m")'Distance between nodes...			
+					If D1+D2=D3 Then 'if d1+d2=d3 -> correct order...
+						Lat1=ObjectNodeY(Selection.obj,1,MinNodeNum)
+						Lon1=ObjectNodeX(Selection.obj,1,MinNodeNum)
+						Lat2=ObjectNodeY(Selection.obj,1,MinNodeNum+1)
+						Lon2=ObjectNodeX(Selection.obj,1,MinNodeNum+1)	
+						If CheckLineRef(Lat1,Lon1,Lat2,Lon2,IntLat,IntLong,IntLat2,IntLong2,IntBrg)=1 Then
+							Print "################Successful Line Match################"
+							Run Command "Select * from "+TempResults+" where Node_Id = "+chr$(34)+TempResults.Node_Id+chr$(34)+" into ToAdd"
+							Insert Into Results 
+								Select * from ToAdd
+							Close Table ToAdd	
+						End If				
+					End If
+					D2=SphericalDistance(ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGX),ObjectGeography(TempResults.obj,OBJ_GEO_LINEBEGY),ObjectNodeX(Selection.obj,1,MinNodeNum-1),ObjectNodeY(Selection.obj,1,MinNodeNum-1),"m") 'Distance between possible second node and intersection
+					D3=SphericalDistance(ObjectNodeX(Selection.obj,1,MinNodeNum),ObjectNodeY(Selection.obj,1,MinNodeNum),ObjectNodeX(Selection.obj,1,MinNodeNum-1),ObjectNodeY(Selection.obj,1,MinNodeNum-1),"m")'Distance between nodes...							
+					If D1+D2=D3 Then
+						Lat1=ObjectNodeY(Selection.obj,1,MinNodeNum-1)
+						Lon1=ObjectNodeX(Selection.obj,1,MinNodeNum-1)	
+						Lat2=ObjectNodeY(Selection.obj,1,MinNodeNum)
+						Lon2=ObjectNodeX(Selection.obj,1,MinNodeNum)
+						If CheckLineRef(Lat1,Lon1,Lat2,Lon2,IntLat,IntLong,IntLat2,IntLong2,IntBrg)=1 Then
+							Print "################Successful Line Match################"
+							Run Command "Select * from "+TempResults+" where Node_Id = "+chr$(34)+TempResults.Node_Id+chr$(34)+" into ToAdd"
+							Insert Into Results 
+								Select * from ToAdd
+							Close Table ToAdd	
+						End If			
+					End IF
+				End If
+				Print "------------------------------"
+			 	Fetch Next From TempResults
+			 Loop		 
+	ElseIf TableInfo(TempResults,TAB_INFO_NROWS)>2 Then 'More than 2 records - Cannot distinguish this 
+		OutputID=""
+		For k=1 to TableInfo(TempResults,TAB_INFO_NROWS)
+			Run Command "Select * from "+TempResults+" where RowID = "+k+" into IDToAdd"
+		 	If k=1 Then
+		 		OutputID=IDToAdd.Node_Id
+		 	Else
+		 		OutputID=OutputID+","+IDToAdd.Node_Id
+		 	End If
+			Close Table IDToAdd
+		Next
+		Print "More than two NPI Links - Cannot analysis"
+		Print #1,IIdentifier+", More than two NPI Links cannot analysis - "+OutputID
+		If IIdentifier = "12SIT009103I"Then
+			Exit Sub
+		End If
+	ElseIf TableInfo(TempResults,TAB_INFO_NROWS)=0 Then	
+		Print "No near NPI Links - Cannot analysis"
+		Print #1,IIdentifier+", No Nearest NPI Lines"
+	Else 'All other records
+		Print #1,IIdentifier+", Unknown Error - "	 		
+	End If
+		 
+		 
+	Delete From TempResults
+	Commit Table TempResults
+	Pack Table TempResults Graphic Data
+	AfterError:
+	Fetch Next From Incidents
+Loop
+
+Update Results Set Dist_m = ObjectLen(obj, "m")	
+Commit Table Results
+Print "Finished!"
+Print #1,"-----  Succesfully Completed  ----- "
+Close File #1
+
+Exit Sub
+SkipRow:
+Print #1,IIdentifier+", Runtime Error cannot analysis" 
+Resume AfterError
+
+End Sub
+
+
+Function CheckLineRef(ByVal Lat1 As Float,ByVal Long1 As Float, ByVal Lat2 As Float, ByVal Long2 As Float, ByVal IntLat As Float, ByVal IntLong As Float, ByVal IntLat2 As Float, ByVal IntLong2 As Float, ByVal BearingInt As Float) As Integer 'Return 1 for first 2 for second
+Dim Vector,VectorTmp1 As Object
+Dim Node1,Node2,IntLine,Incident As Object
+Dim IsLeft,Ax,Ay,Bx,By,Cx,Cy As Float
+
+Set CoordSys Earth Projection 1, 116 'LatLongGDA
+Print "**************************"
+Print "Bearing of two closes nodes: "+ LatLong2Bearing(Lat1,Long1,Lat2,Long2)
+Node1=CreatePoint(Long1,Lat1)
+Node2=CreatePoint(Long2,Lat2)
+IntLine=CreatePoint(IntLong,IntLat) 
+Incident=CreatePoint(IntLong2,IntLat2)
+Set CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000 
+Ax=ObjectGeography(Node1,OBJ_GEO_POINTX)
+Ay=ObjectGeography(Node1,OBJ_GEO_POINTY)
+Bx=ObjectGeography(Node2,OBJ_GEO_POINTX)
+By=ObjectGeography(Node2,OBJ_GEO_POINTY)
+Cx=ObjectGeography(Incident,OBJ_GEO_POINTX)
+Cy=ObjectGeography(Incident,OBJ_GEO_POINTY)
+
+IsLeft=((Bx-Ax)*(Cy-Ay)-(By-Ay)*(Cx-Ax))'Using Cross product to determine if incident falls on the left of the vector
+CheckLineRef=0
+If IsLeft > 0 Then
+	Print "## Point lies on the left side of the road --- assign"
+	CheckLineRef=1
+Else
+	Print "## Point lines on opposite side"
+End If
+Print "**************************"
+Set CoordSys Earth Projection 1, 116 'LatLongGDA
+End Function
+
+Function LatLong2Bearing(ByVal fLat0 As Float, ByVal fLon0 As Float, ByVal fLat1 As Float, ByVal fLon1 As Float) As Float
+	
+'Calculates the azimuth that the destination point bears to the origin. Azimuth is returned as decimal degrees.
+'North=0
+Dim a, b As Float
+Dim fAdjust As Float
+Dim lat0, lon0, lat1, lon1, PI As Float
+PI=3.14159265359
+lat0=fLat0*DEG_2_RAD
+lon0=fLon0*DEG_2_RAD
+lat1=fLat1*DEG_2_RAD
+lon1=fLon1*DEG_2_RAD
+a=Cos(lat1)*Sin(lon1-lon0)
+b=Cos(lat0)*Sin(lat1)-Sin(lat0)*Cos(lat1)*Cos(lon1-lon0)
+
+'perform quadrant adjustment
+If a=0 AND b=0 Then 
+	LatLong2Bearing=0
+	Exit Function
+End If 
+If b=0 Then
+	If a<0 Then 
+		LatLong2Bearing=270
+	Else
+		LatLong2Bearing=90
+	End If
+	Exit Function 
+End If
+	If b<0 Then
+		fAdjust=PI
+	Else 
+		If a<0 Then
+			fAdjust=2*PI
+		Else
+			fAdjust=0
+		End If
+	End If
+LatLong2Bearing=(Atn(a/b)+fAdjust)*RAD_2_DEG
+End Function
+
+'Dim PtLineEast,PtLineNorth,PtLineCH,AngleTmp,AngleFinal As Float			
+''DistPTApart=Sqr(((EndPTNorth - StartPTNorth)^2)+((EndPTEast- StartPTEast)^2))
+''AngleTmp=(EndPTEast-StartPTEast)/DistPTApart
+'
+'If AngleTmp <-1 Then
+'	AngleFinal = Asin(-1)
+'ElseIf AngleTmp >1 Then
+'	AngleFinal = Asin(1)
+'Else 
+'	AngleFinal = Asin(AngleTmp)
+'End If
+'
+
+'PtLineCH = Round((DistBetween/1000)+StartPTCH,0.001) 
+'
+'If (EndPTNorth-StartPTNorth) >= 0 And (EndPTEast-StartPTEast) < 0 Then 'NW  
+'	PtLineEast = StartPTEast + (Sin(AngleFinal)*DistBetween)
+'	PtLineNorth =(Cos(AngleFinal)*DistBetween)+StartPTNorth
+'	'atan( abs(x1 - x)/abs(y1 - y) ) +270
+'
+'ElseIf (EndPTNorth - StartPTNorth)  >= 0 And (EndPTEast- StartPTEast) >= 0 Then  'NE 
+'	PtLineEast =  StartPTEast + (Sin (AngleFinal ) *DistBetween)
+'	PtLineNorth =(Cos (AngleFinal ) *DistBetween)+ StartPTNorth
+'ElseIf (EndPTNorth - StartPTNorth) < 0 And (EndPTEast- StartPTEast) >= 0 Then  'SE 
+'	PtLineEast =  StartPTEast + (Sin (AngleFinal) * DistBetween)
+'	PtLineNorth = StartPTNorth - (Cos (AngleFinal ) * DistBetween)
+'ElseIf (EndPTNorth - StartPTNorth) < 0 And (EndPTEast- StartPTEast) < 0 Then  'SW 
+'	PtLineEast =  StartPTEast + (Sin (AngleFinal ) * DistBetween ) 
+'	PtLineNorth = StartPTNorth - (Cos (AngleFinal )* DistBetween )
+'
+'LatLong2Bearing = 1
+
+'Function here for calculating the bearing
+' 	=ACOS(SIN(Lat1)*SIN(Lat2)+COS(Lat1)*COS(Lat2)*COS(Lon2-Lon1))*6371
+'tc1=mod(atan2(sin(lon2-lon1)*cos(lat2),cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lon2-lon1)),
+'           2*pi)
+' 	
+' 	
+'The formula gives the *initial* heading for a great-circle route from 
+'point A to point B. The heading will change in the course of the 
+'trip. The quantities in the formula have these meanings:
+'
+'  lon1 = longitude of point A
+'  lat1 = latitude of point A
+'  lon2 = longitude of point B
+'  lat2 = latitude of point B
+'  tc1 = direction of point B from point A (angle east of north)
+'  pi = 3.141596...
+
+
+Sub ValidateLineDirection
+Print chr$(12)
+Close all
+'Set Datasets load
+'Open Table "C:\Documents and Settings\jaworra\Desktop\NPI\TAB\NPILinks.TAB" As NPIDataObjRef 'Unvalidated Links
+Open Table "C:\Documents and Settings\jaworra\Desktop\NPI\TAB\Links_Validated.TAB" As NPIDataObjRef 'Validated Links
+Open Table "C:\Documents and Settings\jaworra\Desktop\NPI\TAB\Metro NPI and TN Link Relationship.TAB" As NPIandLinkTbl
+Open Table "C:\Documents and Settings\jaworra\Desktop\NPI\TAB\Metro Node list 4.TAB" As NodeList
+
+Dim nRow,NewId,i,j,k,l,NodePos As Integer
+Dim StartX,StartY,NodeDistMin As Float
+Dim NPILinkIDFound,LogFile As String
+Dim TempObject As Object
+j=0
+i=1
+
+Dim StartTimer As Integer
+Dim StartTime As Time
+Dim StartDate As Date
+Dim StartDT As datetime
+
+'Initialise Time
+StartTimer = Timer()
+StartTime = Time (24)
+StartDate = CurDate()
+StartDT = MakeDateTime(StartDate,StartTime)
+LogFile = PathToDirectory$("C:\Documents and Settings\jaworra\Desktop\NPI\TAB\Links_Validated.TAB")+"ValidateLineDir.log"
+Open File LogFile
+For Output As #1
+Print #1, "-----  Processing ValidateLineDirection Commenced  ----- "
+Print #1, "##"+FormatDate$(GetDate(StartDate))+" "+FormatTime$(GetTime(StartTime), "hh:mm:ss.fff tt")
+Print #1, ""
+Print #1, "" 
+
+
+OnError Goto SkipRow
+'Go through node list newID attributes 
+Fetch First From NodeList
+Do While Not EOT(NodeList)
+	Print NodeList.New_Id
+	NewId=NodeList.New_Id
+	StartX=NodeList.X
+	StartY=NodeList.Y
+
+	Fetch First From NPIandLinkTbl
+	Do While Not EOT(NPIandLinkTbl)
+		If NewId = NPIandLinkTbl.Start_Point_Id Then 'If StartId has been found more than one, then run again. 
+			Print "Searching "+NewId
+			Print "Found "+NPIandLinkTbl.Start_Point_Id
+			Print #1,"Searching "+NewId
+			Print #1,"Found "+NPIandLinkTbl.Start_Point_Id
+			NPILinkIDFound = NPIandLinkTbl.NPI_Link_Id
+			Print "Matched NPI to List "
+			Print #1,"Matched NPI to List "
+			Run Command "Select * from "+NPIDataObjRef+" where ID = "+NPILinkIDFound+" into QueryDist"
+			nRow = Selection.RowID
+			'======================QA DATSET=================================================
+			If ObjectInfo(Selection.obj,OBJ_INFO_TYPE) = 3 Then 'If selection object is a line, covert to a pline
+				TempObject = ConvertToPline(Selection.obj)
+				Update Selection Set obj = TempObject Where RowID = nRow
+				Commit Table NPIDataObjRef			
+			End If
+			If ObjectInfo(Selection.obj,OBJ_INFO_NPOLYGONS) >1 Then 'If selection object is a polyline with mulitple sections, convert to single section
+				Print " >>>>>>  FOUND Multiple Sections"+ ObjectInfo(Selection.obj,OBJ_INFO_NPOLYGONS)
+				Print #1," >>>>>>  FOUND Multiple Sections"+ ObjectInfo(Selection.obj,OBJ_INFO_NPOLYGONS)
+				'Unfinish algorithm here
+				'1)Need to disagreegate polyline 2)Combine Object 3)Update table 
+				'Exit Sub
+			End If
+			'=================================================================================
+			If TableInfo(Selection,TAB_INFO_NROWS) = 1 Then 'More than one case??? 
+				'Compare distance from two coordinates to determine line direction should be reveresed. 
+				Print "Iterating througn node coordinates, total nodes: "+ ObjectInfo(Selection.obj,OBJ_INFO_NPNTS)
+				Print #1,"Iterating througn node coordinates, total nodes: "+ ObjectInfo(Selection.obj,OBJ_INFO_NPNTS)
+				NodePos=0		
+				NodeDistMin=0
+			For k=1 to ObjectInfo(Selection.obj,OBJ_INFO_NPNTS) 
+				Print "     "+SphericalDistance(StartX,StartY,ObjectNodeX(Selection.obj,1,k),ObjectNodeY(Selection.obj,1,k),"m")+"  Distance from point "+k
+				Print #1,"     "+SphericalDistance(StartX,StartY,ObjectNodeX(Selection.obj,1,k),ObjectNodeY(Selection.obj,1,k),"m")+"  Distance from point "+k
+				If k=1 and SphericalDistance(StartX,StartY,ObjectNodeX(Selection.obj,1,k),ObjectNodeY(Selection.obj,1,k),"m") < 1 Then 'is the first node the correct start point
+					NodePos=1 'FirstNode
+					NodeDistMin=SphericalDistance(StartX,StartY,ObjectNodeX(Selection.obj,1,k),ObjectNodeY(Selection.obj,1,k),"m")		
+				ElseIf k>1 and k<ObjectInfo(Selection.obj,OBJ_INFO_NPNTS) and SphericalDistance(StartX,StartY,ObjectNodeX(Selection.obj,1,k),ObjectNodeY(Selection.obj,1,k),"m") < 1 Then
+					If NodeDistMin<>0 and NodeDistMin < SphericalDistance(StartX,StartY,ObjectNodeX(Selection.obj,1,k),ObjectNodeY(Selection.obj,1,k),"m") Then 'More than one node point < 1m
+						'Do nothing and keep previous results
+					Else 
+						NodePos=2 'MiddleNode
+						NodeDistMin=SphericalDistance(StartX,StartY,ObjectNodeX(Selection.obj,1,k),ObjectNodeY(Selection.obj,1,k),"m")	
+					End If
+				ElseIf k=ObjectInfo(Selection.obj,OBJ_INFO_NPNTS) and SphericalDistance(StartX,StartY,ObjectNodeX(Selection.obj,1,ObjectInfo(Selection.obj,OBJ_INFO_NPNTS)),ObjectNodeY(Selection.obj,1,ObjectInfo(Selection.obj,OBJ_INFO_NPNTS)),"m") < 1 Then 
+					If NodeDistMin<>0 and NodeDistMin < SphericalDistance(StartX,StartY,ObjectNodeX(Selection.obj,1,k),ObjectNodeY(Selection.obj,1,k),"m") Then 'More than one node point < 1m
+						'Do nothing and keep previous results
+					Else
+						NodePos=3 'LastNode
+						NodeDistMin=SphericalDistance(StartX,StartY,ObjectNodeX(Selection.obj,1,1),ObjectNodeY(Selection.obj,1,1),"m")	
+					End If
+				End If
+			Next
+			Do Case NodePos 'Perform direction correction
+				Case 1 'First Node
+					Print "     - first node, do nothing"
+					Print #1,"     - first node, do nothing"
+				Case 2 'Middle Nodes
+					Print "     - Not first or last, restructure order....."
+					Print #1,"     - Not first or last, restructure order....."
+					'1) Find first point 2) 
+					
+				Case 3 'Last Node
+					Print "     - last node, reversing order....."	
+					Print #1,"     - last node, reversing order....."	
+					Do Case ObjectInfo(Selection.obj,OBJ_INFO_TYPE) 'Process only if a polyline
+						Case OBJ_TYPE_PLINE 
+							'change variable PolylineTbl 
+							If ObjectInfo(Selection.obj,OBJ_INFO_NPNTS) > 1 Then
+								Print "Enter Reverse Order Here"
+								For l = 1 to ObjectInfo(Selection.obj,OBJ_INFO_NPNTS) 'Reads line Node Coords and Reverses order to change line direction
+									If l = 1 Then
+										Create Pline Into Variable TempObject 1 (ObjectNodeX(Selection.obj,1,l),ObjectNodeY(Selection.obj,1,l)) Pen ObjectInfo(Selection.obj,OBJ_INFO_PEN)
+									Else
+										Alter object TempObject node add(ObjectNodeX(Selection.obj,1,l),ObjectNodeY(Selection.obj,1,l))
+									End If				
+								Next 	
+							Update Selection Set obj = TempObject Where RowID = nRow	 ' Error here!!!
+							Commit Table NPIDataObjRef
+							End If		
+					End Case
+				Case 0 'No 
+					Print "Write an exit clause here"
+			End Case
+			End If
+			Close Table QueryDist		
+			j=j+1
+			Print "Found  " +j+" of "+i
+			Print #1,"Found  " +j+" of "+i
+		End If
+		Fetch Next From NPIandLinkTbl
+	Loop
+	Fetch Rec i From NodeList
+	i=i+1
+	AfterError:
+	Fetch Next From NodeList
+Loop
+Print "-----  Succesfully Completed  ----- "
+Print #1,"-----  Succesfully Completed  ----- "
+Close File #1
+
+Exit Sub
+SkipRow:
+Print "Row Error "+ NodeList.New_Id
+Print #1,"########Row Error "+ NodeList.New_Id
+Resume AfterError
+
+End Sub
+
+Sub IncidentToNode
+Dim IncidentTbl, NodeTbl, ResultsTbl as String	
+Dim IncidentsObj as object
+
+ResultsTbl="C:\TEMP\ResultsNear.TAB"
+'IncidentTbl = FileOpenDlg("G:\Geospatial\GIS\JohnW\NPI\Incidents", "", "tab", "Open any incident file")
+'NodeTbl = FileOpenDlg("G:\Geospatial\GIS\JohnW\Request\ChrisW", "", "tab", "Open any Node tab file")
+'
+'If IncidentTbl = "" or NodeTbl = "" Then
+'	Print  "Please Select a Valid File"
+'	Exit Sub
+'End If
+Close all
+
+IncidentTbl = "G:\Geospatial\GIS\JohnW\NPI\Incidents\New\Incidents.TAB"
+NodeTbl = "G:\Geospatial\GIS\JohnW\Request\ChrisW\Metro Node list 3.TAB"
+
+Open Table IncidentTbl as Incidents 
+Open Table NodeTbl as Nodes
+
+If fileExists(ResultsTbl)then
+	Open Table ResultsTbl as DeleteMe
+	Drop Table DeleteMe
+End If
+
+Commit Table Incidents As ResultsTbl
+Open Table ResultsTbl As Results
+Delete from Results
+Commit Table Results
+Pack Table Results Graphic Data
+
+Dim IIdentifier,IType,IClassification,ITime_Logged,IRoad,IEvent_Status,IDistrict,IStart_Detected_Time,IEnd_Time,IX,IY,IRoad_Owner,IIntersection,IOpp_Link_Affected,IDirection,IVerified_Time,IAssist_Req_Time As String
+Dim IAssist_Arr_Time,INo__Lanes_Blocked,ILateral_Position,IOpp_Lanes_Blocked,IBlockage_Type,IIncident_Category,ISeverity_Category,IDelay,IIncident_Cleared_Time,ITime_Logged__Date_,ITime_Logged__Time_ As String
+Dim IStart_Detected_Time__Date_,IStart_Detected_Time__Time_,IEnd_Time__Date_,IEnd_Time__Time_,IVerified_Time__Date_,IVerified_Time__Time_,IAssist_Req_Time__Date_,IAssist_Req_Time__Time_,IAssist_Arr_Time__Date_ As String 
+Dim IAssist_Arr_Time__Time_,IIncident_Cleared_Time__Date_,IIncident_Cleared_Time__Time_,IEnd_Time___Date,IStart_Time___Date2,IDuration As String 
+
+Dim i as Integer
+
+Fetch First from Incidents 
+Do while Not EOT(Incidents)
+	
+	IncidentsObj = Incidents.obj
+	IIdentifier = Incidents.col1
+	IType  = Incidents.col2
+	IClassification = Incidents.col3
+	ITime_Logged = Incidents.col4
+	IRoad = Incidents.col5
+	IEvent_Status  = Incidents.col6
+	IDistrict = Incidents.col7
+	IStart_Detected_Time  = Incidents.col8
+	IEnd_Time = Incidents.col9
+	IX = Incidents.col10
+	IY  = Incidents.col11
+	IRoad_Owner = Incidents.col12
+	IIntersection = Incidents.col13
+	IOpp_Link_Affected = Incidents.col14
+	IDirection = Incidents.col15
+	IVerified_Time = Incidents.col16
+	IAssist_Req_Time = Incidents.col17
+	IAssist_Arr_Time = Incidents.col18
+	INo__Lanes_Blocked = Incidents.col19
+	ILateral_Position = Incidents.col20
+	IOpp_Lanes_Blocked = Incidents.col21
+	IBlockage_Type = Incidents.col22
+	IIncident_Category = Incidents.col23
+	ISeverity_Category = Incidents.col24
+	IDelay = Incidents.col25
+	IIncident_Cleared_Time = Incidents.col26
+	ITime_Logged__Date_  = Incidents.col27
+	ITime_Logged__Time_  = Incidents.col28
+	IStart_Detected_Time__Date_ = Incidents.col29
+	IStart_Detected_Time__Time_ = Incidents.col30
+	IEnd_Time__Date_ = Incidents.col31
+	IEnd_Time__Time_ = Incidents.col32
+	IVerified_Time__Date_ = Incidents.col33
+	IVerified_Time__Time_ = Incidents.col34
+	IAssist_Req_Time__Date_ = Incidents.col35
+	IAssist_Req_Time__Time_ = Incidents.col36
+	IAssist_Arr_Time__Date_ = Incidents.col37
+	IAssist_Arr_Time__Time_ = Incidents.col38
+	IIncident_Cleared_Time__Date_ = Incidents.col39
+	IIncident_Cleared_Time__Time_ = Incidents.col40
+	IEnd_Time___Date = Incidents.col41
+	IStart_Time___Date2 = Incidents.col42
+	IDuration= Incidents.col43
+	i=i+1
+	
+	Nearest From Variable IncidentsObj to Nodes Into Results Ignore Max 40 Units "m" Data Node_ID= Nodes.New_Id,Identifier=IIdentifier,Type=IType,Classification=IClassification,Time_Logged=ITime_Logged,Road=IRoad,Event_Status=IEvent_Status,District=IDistrict,Start_Detected_Time=IStart_Detected_Time,End_Time=IEnd_Time,X=IX,Y=IY,Road_Owner=IRoad_Owner,Intersection=IIntersection,Opp_Link_Affected=IOpp_Link_Affected,Direction=IDirection,Verified_Time=IVerified_Time,Assist_Req_Time=IAssist_Req_Time,Assist_Arr_Time=IAssist_Arr_Time,No__Lanes_Blocked=INo__Lanes_Blocked,Lateral_Position=ILateral_Position,Opp_Lanes_Blocked=IOpp_Lanes_Blocked,Blockage_Type=IBlockage_Type,Incident_Category=IIncident_Category,Severity_Category=ISeverity_Category,Delay=IDelay,Incident_Cleared_Time=IIncident_Cleared_Time,Time_Logged__Date_=ITime_Logged__Date_,Time_Logged__Time_=ITime_Logged__Time_,Start_Detected_Time__Date_=IStart_Detected_Time__Date_,Start_Detected_Time__Time_=IStart_Detected_Time__Time_,End_Time__Date_=IEnd_Time__Date_,End_Time__Time_=IEnd_Time__Time_,Verified_Time__Date_=IVerified_Time__Date_,Verified_Time__Time_=IVerified_Time__Time_,Assist_Req_Time__Date_=IAssist_Req_Time__Date_,Assist_Req_Time__Time_=IAssist_Req_Time__Time_,Assist_Arr_Time__Date_=IAssist_Arr_Time__Date_,Assist_Arr_Time__Time_=IAssist_Arr_Time__Time_,Incident_Cleared_Time__Date_=IIncident_Cleared_Time__Date_,Incident_Cleared_Time__Time_=IIncident_Cleared_Time__Time_,End_Time___Date=IEnd_Time___Date,Start_Time___Date2=IStart_Time___Date2,Duration=IDuration
+	Commit Table Results
+	Fetch Next From Incidents
+Loop
+
+Update Results Set Dist_m = ObjectLen(obj, "m")	
+Commit Table Results
+Print "Finished!"
+End Sub
+
+Sub SortingLinks
+	
+'Read file into temporary memory section	
+Dim MetroNpiLinkRel,MetroNodeLst As String
+MetroNpiLinkRel = FileOpenDlg("G:\Geospatial\GIS\JohnW\NPI\May_2013\WorkingDirectory","Metro NPI and TN Link Relationship","csv","Open Link Worksheet")
+MetroNodeLst =  FileOpenDlg("G:\Geospatial\GIS\JohnW\NPI\May_2013\WorkingDirectory","Metro Node list 3","csv","Open Node Worksheet")
+If MetroNpiLinkRel = "" or MetroNodeLst = "" Then
+	Print  "Please Select a Valid File"
+	Exit Sub
+End If
+
+Dim ReadLine,PrevReadLine,PrevNPI_LinkID As String 
+Dim Count_NPI_LinkNo,Count_No_Duplic,Count_ReadLine As Integer
+Dim ReadLineDup(1),ReadLineAll(1) As String
+
+Count_ReadLine =0
+Count_NPI_LinkNo =0
+Count_No_Duplic =0
+Print Chr$(12)
+print "-----  Processing Commenced NPI Link Rel ----- "
+
+'Read File 
+Open File MetroNpiLinkRel
+For Input As #1
+	Do While Not EOF(1)
+		Line Input #1,ReadLine
+		If Not EOF(1) Then	
+			Count_ReadLine = Count_ReadLine+1
+			
+			If Count_ReadLine <> 1 Then 'Store all lines except first
+				ReDim ReadLineAll(Count_ReadLine)
+				ReadLineAll(Count_ReadLine) = ReadLine
+		
+				'Print ID duplicated
+				If Mid$(ReadLine,1, InStr(1,ReadLine,",")-1) = PrevNPI_LinkID Then
+	
+					'First Deplicate store the previous value
+					If Count_NPI_LinkNo = 0 Then										
+						Count_NPI_LinkNo = Count_NPI_LinkNo+1 'Number of same Link ID records 
+						Count_No_Duplic = Count_No_Duplic+1 'Number of duplicate records
+						ReDim ReadLineDup(Count_No_Duplic)
+						ReadLineDup(Count_No_Duplic)= PrevReadLine		
+					End If
+					
+					Count_NPI_LinkNo = Count_NPI_LinkNo+1 'Number of same Link ID records
+					Count_No_Duplic = Count_No_Duplic+1 'Number of duplicate records
+					ReDim ReadLineDup(Count_No_Duplic)
+					ReadLineDup(Count_No_Duplic)= ReadLine ' One extra record in array
+							
+				Else
+					Count_NPI_LinkNo = 0
+				End If
+	
+				'Store all data in array
+				PrevNPI_LinkID = Mid$(ReadLine,1, InStr(1,ReadLine,",")-1)
+				PrevReadLine = ReadLine	
+			
+			End If
+		
+		End If
+	Loop
+Close File #1	
+
+print "-----  Processing Commenced Metro Node Lst ----- "
+'Read File 
+Dim NewNodeLst As String
+Dim ReadLineNodeLst(1) As String
+Count_ReadLine =0
+Open File MetroNodeLst
+For Input As #1
+	Do While Not EOF(1)
+		Line Input #1,ReadLine
+		If Not EOF(1) Then	
+			Count_ReadLine = Count_ReadLine+1
+			If Count_ReadLine <> 1 then
+				'print ReadLine		
+				'NewNodeLst = Mid$(ReadLine,1, InStr(1,ReadLine,",")-1)
+				'print NewNodeLst
+				ReDim ReadLineNodeLst(Count_ReadLine-1)
+				ReadLineNodeLst(Count_ReadLine-1) = ReadLine
+			End If
+		End If
+	Loop
+Close File #1	
+
+
+'Analysising section	
+print "-----  Print Out Duplicates Array  ----- "		
+'Run through stored array of duplicates
+Dim i As Integer
+	print UBound(ReadLineDup)
+	For i = 1 to UBound(ReadLineDup)
+		'print ReadLineDup(i)	
+	Next
+'Free Temp Memory...
+ReDim ReadLineDup(0) 
+
+print "-----  Entire Array  ----- "		
+'Run through stored array of duplicates
+Dim j As Integer
+	print UBound(ReadLineAll)
+	For j = 1 to UBound(ReadLineAll)
+		print ReadLineAll(j)	
+	Next
+'Free Temp Memory...
+ReDim ReadLineAll(0) 
+
+print "-----  Entire Array NodeList  ----- "		
+'Run through stored array of duplicates
+Dim CompStoreArray as String 
+Dim k As Integer
+	print UBound(ReadLineNodeLst)
+	For k = 1 to UBound(ReadLineNodeLst)
+		'print ReadLineNodeLst(k)
+		'Pull Out the ID from array
+		print Mid$(ReadLineNodeLst(k),1, InStr(1,ReadLineNodeLst(k),",")-1)
+		
+	Next
+'Free Temp Memory...
+ReDim ReadLineNodeLst(0) 
+
+
+'Offset values 
+' Use statement offset i.e  update Line_2 set obj = Offset( obj, Line_angle, 0.2, "km")  - also explore option OffsetXY( ) function 
+'Check offset angle calc.....
+
+' Closest compare to two lines
+' use nearest command... l
+
+
+End Sub 
+
+Sub GetAccessFileLINK 
+AccessPointFile = FileOpenDlg("","","TAB","Open Table")
+If AccessPointFile <> "" then
+   Alter Control 1 value AccessPointFile
+End if
+End Sub
+
+Sub GetAccessFileNPI
+AccessPointFile = FileOpenDlg("","","TAB","Open Table")
+If AccessPointFile <> "" then
+   Alter Control 2 value AccessPointFile
+End if
+End Sub
+
+	
+Sub ValidateLinks
+'Validate links here
+Close all
+Print Chr$(12)
+
+Dim UsrLinksFileLoc As String
+Dim UsrNPIFileLoc As String
+
+
+Dialog
+Title "Select NPI & Links file"
+
+' Create box around menu
+Control GroupBox 
+		Title "Input" 
+		Position 5, 5 Width 240 Height 60
+
+Control StaticText
+	Title "Links File:"
+	Position 20,20
+
+Control EditText
+	Value ""
+	Width 150
+	Position 60,20
+	Into UsrLinksFileLoc
+	ID 1
+	
+Control Button
+	Title "&..."
+	Calling GetAccessfileLINK
+	Position 220,20
+	Width 20
+
+
+Control StaticText
+	Title "NPI File:"
+	Position 20,45
+
+Control EditText
+	Value ""
+	Width 150
+	Position 60,45
+	Into UsrNPIFileLoc
+	ID 2
+	
+Control Button
+	Title "&..."
+	Calling GetAccessFileNPI
+	Position 220,45 
+	Width 20
+
+Control OKButton
+	Position 200,70
+Control CancelButton
+	Position 150,70
+
+If CommandInfo(CMD_INFO_DLG_OK) Then
+
+	open table UsrLinksFileLoc as Links
+	open table UsrNPIFileLoc as NPI
+	
+	'Debug 
+	'open table "G:\Geospatial\GIS\JohnW\NPI\Sample_Links.tab" as Links
+	'open table "G:\Geospatial\GIS\JohnW\NPI\Sample_NPILinks.tab" as NPI
+	'open table "G:\Geospatial\GIS\JohnW\NPI\Links.tab" as Links
+	'open table "G:\Geospatial\GIS\JohnW\NPI\NPILinks.TAB" as NPI
+	
+	Dim TempTableLocation as String
+	TempTableLocation= "C:\Temp\TempTable.tab"
+	
+	Select * from Links where RowID = 1 Into DeleteMe
+	Commit Table DeleteMe as "G:\Geospatial\GIS\JohnW\NPI\Links_Validated.TAB"
+	Close Table DeleteMe
+	Open Table "G:\Geospatial\GIS\JohnW\NPI\Links_Validated.TAB" as LinksValidated
+	Delete from LinksValidated
+	
+	
+	'Remove the temp table if it exist
+	If fileExists(TempTableLocation)then
+		Open Table TempTableLocation as DeleteMe
+		Drop Table DeleteMe
+	End If
+	
+	Map From NPI,Links
+	Set Map Window frontwindow()  Layer 2 Display Global    Global Line (1,2,16711935) 
+	Set Map Window frontwindow()  Layer 1 Display Global    Global Line (1,2,65280)   
+	
+	'Browse all NPI table and run through
+	Dim i as Integer
+	i = 0 
+	Dim j as Integer
+	j = 0
+	Dim k as Integer
+	k = 0 
+	Dim RefI As Integer
+	Dim CompI As Integer
+	RefI = 0
+	CompI = 0 
+	
+	Dim RefObj As Object 
+	Dim CompObj As Object
+	Dim DistBetwObj As Object
+	Dim CombineObj As Object 
+	
+	Dim firstFetRow as Integer
+	Dim secondFetRow as Integer
+	Dim thirdFetRow as Integer
+	
+	Dim zeroDistCounter As Integer
+	Dim zeroDistAry(1) As Integer
+	Dim zeroDistArySize As Integer
+	zeroDistArySize = 0 
+	
+	Dim Col1LinksTbl As Integer
+	Dim Col2LinksTbl As String 
+	Dim Col3LinksTbl As String  
+	
+	Fetch first from NPI
+	Do While NOT EOT(NPI)
+		firstFetRow = NPI.RowID
+		Print "Processing Line "+NPI.Col1+" ...."
+		
+		Col1LinksTbl = NPI.Col1
+		Col2LinksTbl = NPI.Col2
+		Col3LinksTbl = NPI.Col3
+		
+		RefObj = NPI.Obj 'Save current object - Polyline
+		'Print ObjectInfo(RefObj,OBJ_INFO_NPNTS)+"  Number of lines in Refline"
+		
+		'Query 1 for compared line
+		'Select * from Links,NPI where Links.Obj Intersects NPI.Obj into FirstQuery   'Change this to select all intersects
+		Select * from Links where Links.Obj Intersects RefObj into FirstQuery 
+		'Print TableInfo(FirstQuery,TAB_INFO_NROWS) +"  NUMBER OF ROWS"
+		
+		'if no intersection between lines jump to next row
+		If TableInfo(FirstQuery,TAB_INFO_NROWS) > 0 Then    
+			
+			
+			Browse * from FirstQuery
+			Commit table FirstQuery as TempTableLocation
+			Close table FirstQuery 
+			Open Table TempTableLocation as QueryTemp
+			
+			'Query 2 for compared Line
+			'OPTIONS HERE
+				'One - check each node for both objects	OR 'Two - find nearest  and see if anything is over 1m
+			Fetch first from QueryTemp
+			Do While NOT EOT(QueryTemp)
+				secondFetRow = QueryTemp.RowID
+	
+				'Print ObjectInfo(QueryTemp.obj,OBJ_INFO_NPNTS)
+				zeroDistCounter = 0 
+				'For loop here to check each nodes distace OR a while < 2
+				For CompI = 1 To ObjectInfo(QueryTemp.obj,OBJ_INFO_NPNTS) 
+					CompObj = CreatePoint(ObjectNodeX(QueryTemp.obj,1,CompI),ObjectNodeY(QueryTemp.obj,1,CompI)) 'Save current object - Point
+					
+					DistBetwObj = ConnectObjects(RefObj,CompObj,true)
+					'Print ObjectLen(DistBetwObj,"m")+" ----  distance between object.  >>> ID:"+Col1LinksTbl ' Debub here
+					If ObjectLen(DistBetwObj,"m") = 0 Then 'Counts how many nodes are on reference line
+						zeroDistCounter = zeroDistCounter +1
+					End If
+				Next 		
+				
+				If zeroDistCounter < numberVerticesReq Then 'If there is no
+				'	Print zeroDistCounter +" *** this line is not a valid match!!"
+				'	Print "Delete row: "+secondFetRow
+					zeroDistArySize = zeroDistArySize+1
+					ReDim zeroDistAry(zeroDistArySize)
+					zeroDistAry(zeroDistArySize) = secondFetRow
+					'Print secondFetRow +" <<"
+					'delete from QueryTemp where RowID = secondFetRow 
+				End If	
+				
+				Fetch Rec secondFetRow from QueryTemp
+				Fetch Next from QueryTemp
+			Loop
+			
+			'Delete Query 2 
+			'Print "Delete the following rowIDs---"
+			For j =1 to zeroDistArySize
+				'print zeroDistAry(j)
+				delete from QueryTemp where RowID = zeroDistAry(j)
+			Next
+		
+			'Save object in table to variable
+			Select * from QueryTemp into Selection 
+			Objects Combine
+			Commit Table QueryTemp
+			Pack Table QueryTemp Graphic Data
+				
+			Select * from QueryTemp into ObjectToSend
+			CombineObj = ObjectToSend.obj
+			Close Table ObjectToSend
+			
+			'Insert Into varible in result table
+			Insert Into LinksValidated(Obj,ID,Description,Type) values(CombineObj,Col1LinksTbl,Col2LinksTbl,Col3LinksTbl)
+			Commit Table LinksValidated
+		
+			Delete from QueryTemp
+			Close table QueryTemp
+	
+			ReDim zeroDistAry(0)
+			zeroDistCounter =0
+			zeroDistArySize =0
+		Else
+			Print "----No Intesection----"
+		End If
+		 i = i+1
+		'Realigns CurrentRow
+		Fetch Rec firstFetRow from NPI 
+		Fetch Next from NPI
+	Loop
+	Map from LinksValidated
+	Set Map Window frontwindow()  Layer 1 Display Global   Global Line (1,2,255) 
+	
+	Print "-------------------------------------------------------"
+	Print "Succesfully Completed - "+i+"  NPI Polylines validated"
+	
+End If
+
+End Sub
+
+
+Sub ImportCSV
+Print Chr$(12) 'Clear Output
+Close all 
+
+Dim CreateTable As String
+Dim CreateTableName As String
+Dim Poly_File As String
+Dim LogFile As String
+Dim LogFilGen As Logical
+Dim ReadLine As String
+Dim ScRoadsFile As String
+Dim ScRoadsName As String
+Dim ScRoadsTmpFile As String
+Dim LocalGovBdyFile As String
+
+'Attributes
+Dim IDAtt As String
+Dim DescrAtt As String
+Dim TypeAtt As String
+Dim CoordsAtt As String
+
+Dim FirCol As Integer
+Dim SecCol As Integer
+Dim ThirCol As Integer
+Dim StringLen As Integer
+
+Dim Quote1 As Integer
+Dim Quote2 As Integer 
+
+Dim CordStart As Integer
+Dim CordEnd As Integer
+Dim CordTemp As String
+Dim CordLenth As Integer
+Dim CordEndBol As Integer
+Dim LatLine,LongLine As Float
+Dim CordCounter As Integer
+Dim CoordTrue As Logical
+
+Dim StartTimer As Integer
+Dim StartTime As Time
+Dim StartDate As Date
+Dim StartDT As datetime
+
+'Initialise Time
+StartTimer = Timer()
+StartTime = Time (24)
+StartDate = CurDate()
+StartDT = MakeDateTime(StartDate,StartTime)
+
+Dim LoopCounter As Integer
+LoopCounter =0
+Dim StartNode As Integer
+
+Dim Polyline As object
+Create Pline Into Variable Polyline 0
+Pen MakePen(2, 2, RGB(0, 128, 0))	
+
+'Close all
+
+'User Input
+Poly_File = FileOpenDlg("","","csv","Open CSV Table")
+CreateTableName	= PathToTableName$(Poly_File) 
+LogFile = PathToDirectory$(Poly_File)+"ErrorLog_"+CreateTableName+".log"
+CreateTable = FileSaveAsDlg("",CreateTableName,"tab","Save Table")
+'ScRoadsFile = FileOpenDlg("\\Metdnw04\DATA2\spatialData\transportation\roads\stateControlled\scRoads","sc_roads","tab","Open State Controlled Rds Table")
+'LocalGovBdyFile = FileOpenDlg("\\Metdnw04\DATA2\spatialData\boundaries\lga\","Local_Government_Boundaries","tab","Open State Controlled Rds Table")
+'ScRoadsName = PathToTableName$(ScRoadsFile) 
+'ScRoadsTmpFile = "C:\Temp\sc_roadsAOI.tab"
+
+'User selects cancel
+If Poly_File = "" Or CreateTable = "" Then
+Exit Sub
+End If
+
+'Log file
+Open File LogFile
+For Output As #2
+LogFilGen = False
+Print #2, "-----  Processing Commenced  ----- "
+Print #2, "##"+FormatDate$(GetDate(StartDate))+" "+FormatTime$(GetTime(StartTime), "hh:mm:ss.fff tt")
+Print #2, ""
+
+
+OnError Goto CoordinateError
+'Create Table 
+Create Table CreateTableName
+(ID Integer ,Description Char(254), Type Char(100)) 
+	File CreateTable
+Create Map For CreateTableName
+Open Table CreateTable Interactive
+		
+Open File Poly_File For Input As #1
+	Do While Not EOF(1)
+		Line Input #1,ReadLine
+		If Not EOF(1) Then	
+		
+			OnError Goto CoordinateError
+			LoopCounter = LoopCounter+1
+			
+			'Separate the line into attributes
+			FirCol = InStr(1,ReadLine,",")
+			SecCol = InStr(FirCol+1,ReadLine,",")
+			ThirCol = InStr(SecCol+1,ReadLine,",")
+			StringLen = Len(ReadLine)
+		
+			Quote1 = InStr(1,ReadLine,chr$(34))
+			Quote2 = InStr(Quote1+1,ReadLine,chr$(34))		
+			
+			IDAtt = Mid$(ReadLine, 1, FirCol-1) 
+			DescrAtt = Mid$(ReadLine, FirCol+1,(SecCol-FirCol-1))
+			TypeAtt = Mid$(ReadLine, SecCol+1,(ThirCol-SecCol-1))
+			
+			
+			'Mid$(Struct_Description,InStr(1,Struct_Description,"-")+2, InStr(1,Struct_Description,"|") - InStr(1,Struct_Description,"-")-2)
+						
+			'Coordinate assingment to the third column ",,," and onwards	
+			'CoordsAtt = Mid$(ReadLine, ThirCol+1, (StringLen-ThirCol))
+			'Coordinate assingment to the first "-" found after second column, till the end of line - Assumes lat be long
+			Dim foundSymbol As Integer
+			Dim foundCoord As Logical
+			
+			foundCoord = false
+			
+			foundSymbol = InStr(SecCol,ReadLine,"-")
+			'print Mid$(ReadLine,foundSymbol+1,1)
+			
+			'Check Lat starts with 1 or 2 (valid coordinate check)
+			While(foundCoord = false)
+					If (Mid$(ReadLine,foundSymbol+1,1) = "1" or  Mid$(ReadLine,foundSymbol+1,1) = "2") then
+						CoordsAtt = Mid$(ReadLine,foundSymbol,StringLen-foundSymbol+1) 
+						foundCoord = true
+					else
+						foundSymbol = InStr(foundSymbol+1,ReadLine,"-")
+					End If
+			Wend 
+			'Print CoordsAtt+"Final"
+			'CoordsAtt = Mid$(ReadLine,InStr(SecCol,ReadLine,"-"),StringLen-InStr(SecCol,ReadLine,"-")+1)
+
+
+			'Check to see if comma falls within a quotation - commas do not separate columns
+			If (InStr(1,ReadLine,chr$(34)) > 0) Then
+				
+				'Reassign values
+				If (FirCol > Quote1 and FirCol < Quote2) Then
+					FirCol = InStr(Quote2,ReadLine,",")
+					SecCol = InStr(FirCol+1,ReadLine,",")
+					ThirCol = InStr(SecCol+1,ReadLine,",")
+				ElseIf (SecCol > Quote1 and SecCol < Quote2) Then
+					SecCol = InStr(Quote2+1,ReadLine,",")
+					ThirCol = InStr(SecCol+1,ReadLine,",")
+				ElseIf (thirCol > Quote1 and thirCol < Quote2) Then
+					ThirCol = InStr(Quote2+1,ReadLine,",")
+				End If
+				
+				IDAtt = Mid$(ReadLine, 1, FirCol-1) 
+				DescrAtt = Mid$(ReadLine, FirCol+1,(SecCol-FirCol-1))
+				TypeAtt = Mid$(ReadLine, SecCol+1,(ThirCol-SecCol-1))
+				
+				'CoordsAtt = Mid$(ReadLine, ThirCol+1, (StringLen-ThirCol))
+				'Coordinate assingment to the first "-" found after second column	
+				CoordsAtt = Mid$(ReadLine,InStr(SecCol,ReadLine,"-"),StringLen-InStr(SecCol,ReadLine,"-"))
+			End If
+			
+			'Print CoordsAtt +"  CoordsAtt"
+			'Run through coordinates and separate the mulinodes to generated lines	
+			CordLenth = Len(CoordsAtt)
+			CordTemp = CoordsAtt
+			CordStart = 1
+			CordEndBol = 1
+			CordCounter = 0
+			StartNode = 0
+			CoordTrue = False
+			'AfterCoordnateErr:
+			
+			'Create polyline object
+			While CordEndBol = 1
+				
+			CordStart = 1 ' Reinitialise
+			CordEnd = InStr(1,CordTemp,";")
+			
+			'If no ending ; then assing 0 to end Loop
+			If CordEnd = 0 Then
+				CordEnd = Len(CordTemp)+2
+				CordEndBol = 0	
+			End If
+
+        	CordTemp = Mid$(CordTemp,CordStart,CordEnd-CordStart)
+			LatLine = Left$(CordTemp ,InStr(1,CordTemp,":")-1)
+			LongLine = Right$(CordTemp ,Len(CordTemp)-InStr(1,CordTemp,":"))
+			
+		
+			'Validation - Check inside Area of interest check  and
+			'Precision Lat >3 Long > 4 (i.e do not include any values truncated)
+			'If (LatLine > -30 And LatLine < -8 And LongLine > 130 And LongLine < 160 And len(Str$(LatLine)) > 4 And len(Str$(LongLine)) > 5)  Then
+			If (LatLine > -30 And LatLine < -8) And (LongLine > 130 And LongLine < 160 ) Then
+			Alter Object Polyline
+				Node Add (Right$(CordTemp ,Len(CordTemp)-InStr(1,CordTemp,":")),Left$(CordTemp,InStr(1,CordTemp,":")-1))
+				CoordTrue = True
+			End If
+			
+			'Check to see if it is the end of line - No more : in String CordTemp
+			CordStart = InStr(1,CordTemp,":")
+			CordCounter = CordCounter+CordEnd
+			
+			'Reset
+			CordTemp = Mid$(CoordsAtt,CordCounter+1, Len(CoordsAtt)-CordEnd)
+			Wend	
+			
+		
+			Print "Processing "+IDAtt+" ...."
+			'If the record has a true cordinate add to row, else print to log file
+			If CoordTrue = True Then
+				'Insert Records
+				 Insert Into CreateTableName (obj,ID,Description,Type)'(ID, Description,Type ,obj)
+				 Values (Polyline,IDAtt,DescrAtt,TypeAtt)
+			
+				 Create Pline Into Variable Polyline 0
+				 Pen MakePen(2, 2, RGB(0, 128, 0))
+		    	 'Commit table CreateTableName
+		     Else 
+		     	Open File LogFile
+				For Output As #2
+				Print #2, "## INVALID Coordiate - See line "+LoopCounter+" below"+ReadLine
+				Print #2, LoopCounter
+		     	Close File #2
+		     	Print "Log File Created"
+		     End IF 
+			
+		End If
+
+			AfterCoordnateErr:
+	Loop
+Commit table CreateTableName
+
+
+'Check
+
+
+
+
+
+'Dim BufferObject As Object
+'Dim SQLString As String
+'Dim CreateTableObject As String
+'Dim BD As Integer
+'BD = 20 ' Buffer distance
+'
+''Select all roads within BCC into temporary table
+'Open Table LocalGovBdyFile As LocalGovBdy 'hard Coded remove
+'Open Table ScRoadsFile as ScRoadsName 
+'Select * from ScRoadsName, LocalGovBdy where LocalGovBdy.ASGC_number = 31000 and sc_roads.obj Intersects LocalGovBdy.obj into Selection ' Remove Hard Code HERE!!  
+'Select COL1 from Selection into Selection 'There should be a better way here!!! 
+'Commit Table Selection As "C:\Temp\Test.tab"
+'Open Table "C:\Temp\Test.tab" as Test
+'
+''Select from SCRoads Ipswich Hwy (17A), this will remain hard coded
+'Select * from ScRoadsName where STREET = "17A" into Selection
+'Select COL1 from Selection into Selection
+'
+''Append results of selection data 
+'Insert Into Test
+'	Select * from Selection
+'Commit Table Test
+'
+''Temporay Table
+'Select * from Test where RowID = 1 Into Selection  
+'Commit Table Selection as "C:\Temp\Test2.tab"
+'Open Table "C:\Temp\Test2.tab" as Test2
+'
+'
+''Buffer Result Save ' Future works -> remove the adition TEST2 table 
+'Create Object As Buffer
+'From Test 
+'Into Table Test2
+'Width BD Units "m"
+'Commit Table Test2
+'
+''Final query -> for roads 17a and BCC region
+'SQLString = "Select * from " + CreateTableName + ","+Test2+" where "+CreateTableName+".Obj Intersects "+Test2+".obj into Selection"
+'Run Command SQLString
+'
+'
+''Save result and delete temp tables
+'Dim ScRoadsInt as String
+'ScRoadsInt = PathToDirectory$(Poly_File)+CreateTableName+"_SCRoads.tab"
+'Commit Table Selection As ScRoadsInt
+'Close Table Selection
+'
+'Open Table ScRoadsInt As PathToTableName$(ScRoadsInt)
+'Map From PathToTableName$(ScRoadsInt),CreateTableName
+'Set Map Zoom Entire Layer CreateTableName
+'Layer 1 Display Global Global Line (1,2,16776960)
+
+'Exit
+Close File #1
+Print #2, "-----  Processing Completed in "+TimerPrint(StartTimer)+"  -----" 
+Close File #2
+
+If LogFilGen = True Then
+	Print "PROCESSED COMPLETED - With Errors, see log file"
+Else 
+	Print "PROCESSED SUCCESSFUL - No Errors"
+	Kill LogFile
+End If
+
+'Clean up
+'Close Table LocalGovBdy
+'Drop Table Test
+'Drop Table Test2
+
+Exit Sub
+
+CoordinateError:
+Print #2, "## INVALID LINE: "+ LoopCounter
+Print #2, ReadLine
+Print #2, ""
+OnError GoTo 0
+LogFilGen = True
+Resume AfterCoordnateErr
+
+End Sub
+
+Function TimerPrint(ByVal StartTimer As Integer) As String
+	
+Dim ElapsedTimer As Integer
+ElapsedTimer = Timer()-StartTimer
+
+If ElapsedTimer > 3600 Then 
+	TimerPrint = ElapsedTimer/3600 +" Hours"
+ElseIf ElapsedTimer > 60 Then
+	TimerPrint = ElapsedTimer/60 +" Minutes"
+Else
+	TimerPrint = ElapsedTimer +" Seconds"
+End If	
+
+End Function
+
+
+'Exit
+Sub ExitSub
+	End Program
+End Sub
+
+'About Sub
+Sub AboutSub
+Dim message as String
+
+message = "NPI LINKS GENERATION AND VALIDATION "+ versionTxt +"   "+versionDate
+message = message + Chr$(13)
+message = message + "by Geospatial Technologies"
+message = message + Chr$(13)
+message = message + Chr$(13)
+message = message + "From a CSV file Creates Polyline"
+message = message + Chr$(13)
+message = message + "Validated LINKS"
+Note message
+
+End Sub
+
+

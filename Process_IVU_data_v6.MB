@@ -1,0 +1,301 @@
+
+'-------------------------------------------------------------------------------------------------------------------------
+'	File:			Process_IVU_data_v2.MB
+'	Author:		Ben Dalton (& Nick Lawrence December 2009 & John Worrall 2011)
+'	Updated:	September 2010 
+'	Purpose:	Converts IAP IVU GPS point data into MapInfo polylines.
+'	Notes:		Requires a list of data sub-directories as a text file.
+'						Checks for time and/or gps signal gaps between records and restarts
+'						route polyline at each gap. Does not check for spatial gaps.
+'-------------------------------------------------------------------------------------------------------------------------
+
+Include "mapbasic.def"
+
+Declare Sub MAIN
+Declare Sub GetFileNames (byval sPath As String, byval sFilespec As String, sList() As String)
+Declare Sub ProcessPosOnly
+Declare Sub ProcessPosAndSdm
+
+Define MAX_PATH 260
+Define INVALID_HANDLE_VALUE -1
+Define MAX_TIME 300 'maximum time difference (gap in seconds) between consecutive position records
+
+Type FILETIME
+	dwLowDateTime As Integer
+	dwHighDateTime As Integer
+End Type
+
+Type WIN32_FIND_DATA
+	dwFileAttributes As Integer
+	ftCreationTime As FILETIME
+	ftLastAccessTime As FILETIME
+	ftLastWriteTime As FILETIME
+	nFileSizeHigh As Integer
+	nFileSizeLow As Integer
+	dwReserved0 As Integer
+	dwReserved1 As Integer
+	cFileName As String * MAX_PATH
+	cAlternate As String * 14
+End Type
+
+Declare Function FindFirstFile Lib "kernel32"
+	Alias "FindFirstFileA" (ByVal lpFileName As String, lpfindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindNextFile Lib "kernel32"
+	Alias "FindNextFileA" (ByVal hFindFile As Integer, lpFindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindClose Lib "kernel32"
+	Alias "FindClose" (ByVal hFindFile As Integer) As Integer
+
+Dim pos_file, sdm_file, pos_line, sdm_line, list_line As String
+Dim i, num_files_int As Integer
+Dim sTables() As String
+
+'-------------------------------------------------------------------------------------------------------------------------
+
+Sub GetFileNames (ByVal sPath As String, ByVal sFilespec As String, sList() As String)
+Dim hFindFile, nStatus As Integer
+Dim f As WIN32_FIND_DATA
+Dim i As Integer
+
+hFindFile = FindFirstFile (sPath + sFilespec, f)
+If hFindFile <> INVALID_HANDLE_VALUE Then
+	Do
+		If (f.dwFileAttributes \ 16) Mod 2 = 0 Then
+			i = i + 1
+			ReDim sList(i)
+			sList(i) = Left$(f.cFilename, Len(f.cFilename) - 4) 'get filename without extension
+		End If
+		nStatus = FindNextFile (hFindFile, f)
+	Loop While nStatus = 1
+End If
+nStatus = FindClose (hFindFile)
+End Sub
+
+'-------------------------------------------------------------------------------------------------------------------------
+
+Sub MAIN
+
+Dim root_dir, data_dir, list_file, truck_file As String
+
+Close All
+
+Print Chr$(12)
+
+list_file = FileOpenDlg("", "list", "txt", "Open list of directories")
+If list_file = "" Then
+	Exit Sub
+End If
+
+root_dir = PathToDirectory$(list_file)
+truck_file = root_dir + "truck.tab"
+
+Create Table truck_tab
+	(IVU_ID Char(50),
+	Trip_Date Date,
+	St_Time Time,
+	End_Time Time,
+'	Max_Speed Decimal (7, 1), <- not needed as no data
+	Vehicle_Cat Char(50),
+	Axle_Count Char(20),
+	Mass_Status Char(10),
+	TCM Char(50)
+	)
+	File truck_file
+Create Map
+	For truck_tab
+	CoordSys Earth Projection 1, 116
+Set Table truck_tab
+	FastEdit On
+	Undo Off
+
+Open File list_file
+	For Input
+	As #1
+	
+Do
+	Line Input #1, list_line
+	If Not EOF(1) Then
+		Print Chr$(10) & "Processing folder: " + list_line
+		data_dir = root_dir + list_line + "\data\"
+		Call GetFileNames (data_dir, "*.pos", sTables) 'populate array with all file names in current directory
+		num_files_int = Ubound(sTables)
+		For i = 1 To num_files_int 'for each file name in array
+			'if .pos file exists, open and read first line to check if empty
+			pos_file = data_dir + sTables(i) & ".pos"
+			If FileExists(pos_file) Then
+				Open File pos_file For Input As #2			
+				Line Input #2, pos_line					
+				If Len(pos_line) > 20 Then 'pos file contains data so check sdm file
+					'if .sdm file exists, open and read first line to check if empty
+					sdm_file = data_dir + sTables(i) & ".sdm"
+					If FileExists(sdm_file) Then
+						Open File sdm_file For Input As #3
+						Line Input #3, sdm_line
+						If Len(sdm_line) > 20 Then 'sdm file contains data so process pos and sdm files together
+							Call ProcessPosAndSdm
+						Else  'sdm file has no data so process pos file only (faster)
+							Call ProcessPosOnly
+							Print sdm_file & " (" & i & " of " & num_files_int & ") Empty"
+						End If
+						Close File #3
+					Else
+						Call ProcessPosOnly 'process pos file only if there's no sdm file
+					End If
+				Else 'pos file empty so go to next filename in array
+					Print pos_file & " (" & i & " of " & num_files_int & ") Empty"
+				End If
+				Close File #2
+			Else
+				Print pos_file + " missing"
+			End If
+		Next			
+	End If
+Loop Until EOF(1)
+
+Close File #1
+
+Commit Table truck_tab 'save truck_tab
+
+Print Chr$(10) & "<< Processing Completed >>" & Chr$(10)
+
+End Sub
+
+'-------------------------------------------------------------------------------------------------------------------------
+
+Sub ProcessPosOnly   ' process just pos file when sdm file is empty
+
+Dim truck_obj As Object 
+Dim date_val As Date
+Dim lat_fl, long_fl As Float
+Dim curr_time, prev_time, start_time As Time
+Dim line_num As Integer
+Dim lat_fl2, long_fl2 As Float
+ 
+OnError GoTo EndSub
+
+Print pos_file & " (" & i & " of " & num_files_int & ")" '<- show progress
+date_val = Left$(pos_line, 8) 'get date from 1st line in pos file
+start_time = Mid$(pos_line, 9, 9) 'get start time from 1st line in pos file
+curr_time = start_time 'set current time to start time for first interation
+line_num = 1
+Create Pline Into Variable truck_obj 0 'create new polyline object
+Do  'iterate thru pos file, check for time/gps gaps between records, break and restart line at gap            
+'	If Mid$(pos_line, 9, 9) < 0 Then ' If the time formatt is incorrect
+	prev_time = curr_time 'record previous time before getting current time
+	curr_time = Mid$(pos_line, 9, 9) 'get current time				
+	'If curr_time - prev_time > MAX_TIME Then 'break line if time gap is > MAX_TIME constant
+	 If curr_time - prev_time > MAX_TIME or curr_time - prev_time < 0 or Abs(lat_fl2 - lat_fl) > 0.01 or Abs( long_fl2 -  long_fl) > 0.01 Then
+		If ObjectLen(truck_obj, "m") > 0 Then 'only insert line into table if length > 0
+			Insert Into truck_tab (Obj, IVU_ID, Trip_Date, St_Time, End_Time)
+				Values (truck_obj, list_line, date_val, start_time, prev_time)
+		End If
+		Create Pline Into Variable truck_obj 0 'create new empty polyline object
+		start_time = curr_time 'set new start time	
+  	End If
+	lat_fl = Val(Mid$(pos_line, 25, 9))   'read position coords into vars
+	long_fl = Val(Mid$(pos_line, 34, 10))
+	If (lat_fl <> 0 And lat_fl > -45.0) And (long_fl <> 0 And long_fl < 155.0) Then  'only non-zero & valid coords.
+		Alter Object truck_obj Node Add (long_fl, lat_fl) 'use coords to add node to polyline object 
+	Else  'break line, insert into table and restart if no GPS data
+		If ObjectLen(truck_obj, "m") > 0 Then 'only insert line into table if length > 0
+			Insert Into truck_tab (Obj, IVU_ID, Trip_Date, St_Time, End_Time)
+				Values (truck_obj, list_line, date_val, start_time, prev_time)
+		End If
+		Create Pline Into Variable truck_obj 0 'create new empty polyline object
+   		start_time = curr_time 'set new start time
+	End If
+	Line Input #2, pos_line  'read next line from pos file
+	line_num = line_num + 1 'counter for pos file line no.
+	lat_fl2 = Val(Mid$(pos_line, 25, 9))   'Store previous value for distance checks
+	long_fl2 = Val(Mid$(pos_line, 34, 10))
+'End If ' Data mismatch
+EndSub:
+Loop Until EOF(2)  'exit loop at end of pos file
+If ObjectLen(truck_obj, "m") > 0 Then 'only insert records with valid objects (i.e.length > 0)
+	'insert record
+	Insert Into truck_tab (Obj, IVU_ID, Trip_Date, St_Time, End_Time)
+		Values (truck_obj, list_line, date_val, start_time, curr_time)
+End If
+
+End Sub
+
+'-------------------------------------------------------------------------------------------------------------------------
+
+Sub ProcessPosAndSdm  'process both sdm and pos files together
+
+Dim pos_start_time, pos_cur_time, pos_prev_time, sdm_time As Time
+Dim cat_vehicle, cat_axle, cat_mass, cat_tcm As String
+Dim lat_fl, long_fl As Float
+Dim truck_obj As Object 
+Dim date_val As Date
+Dim line_num As Integer
+
+OnError GoTo EndSub
+
+Print pos_file & " (" & i & " of " & num_files_int & ")"      
+Print sdm_file & " (" & i & " of " & num_files_int & ")"
+'do not read config values from sdm file until after first self-declaration
+'as cannot self-declare unless engine (and GPS) is running
+sdm_time = Mid$(sdm_line, 9, 9)
+date_val = Left$(pos_line, 8) 'get date from 1st line in pos file
+pos_start_time = Mid$(pos_line, 9, 9) 'get start time for first polyline object
+Create Pline Into Variable truck_obj 0 'create new polyline object
+Do  'iterate thru pos file, check time of each line against time in sdm file,
+	' also check for time/gps gaps between records, break and restart line at gap
+	If pos_cur_time - pos_prev_time > MAX_TIME Then 'break line if time gap is > MAX_TIME constant			
+		If ObjectLen(truck_obj, "m") > 0 Then 'only insert line if its length > 0
+			Insert Into truck_tab (Obj, IVU_ID, Trip_Date, St_Time, End_Time, Vehicle_Cat, Axle_Count, Mass_Status, TCM)
+				Values (truck_obj, list_line, date_val, pos_start_time, pos_prev_time, cat_vehicle, cat_axle, cat_mass, cat_tcm)
+		End If			
+		Create Pline Into Variable truck_obj 0 'create new empty polyline object
+		pos_start_time = pos_cur_time 'set new start time for new line
+	End If
+	If sdm_time >= pos_prev_time And sdm_time <= pos_cur_time Then 'sdm time is between previous and current pos times
+		If ObjectLen(truck_obj, "m") > 0 Then 'only insert records with valid objects      
+			'self-declaration means possible change in truck config so write current values to table
+			'end time of current line object is same as time of self-declaration
+			Insert Into truck_tab (Obj, IVU_ID, Trip_Date, St_Time, End_Time, Vehicle_Cat, Axle_Count, Mass_Status, TCM)
+				Values (truck_obj, list_line, date_val, pos_start_time, sdm_time, cat_vehicle, cat_axle, cat_mass, cat_tcm)			
+		End If      
+		pos_start_time = sdm_time 'start time of next line object is also time of self-declaration
+		Create Pline Into Variable truck_obj 0 'start a new polyline object                            
+		'truck config values for current sdm line will go into next record
+		cat_vehicle = Mid$(sdm_line, 35, 4)
+		cat_axle = Mid$(sdm_line, 139, 2)
+		cat_mass = Mid$(sdm_line, 141, 1)
+		cat_tcm = Str$(Val(Mid$(sdm_line, 142, 5))) 'strip leading zeros from string 
+		Line Input #3, sdm_line 'read next line from sdm      
+		sdm_time = Mid$(sdm_line, 9, 9) 'get time of next self-declare			                          
+	End If
+	lat_fl = Val(Mid$(pos_line, 25, 9))   'read position coords into vars
+	long_fl = Val(Mid$(pos_line, 34, 10))
+	If (lat_fl <> 0 And lat_fl > -45.0) And (long_fl <> 0 And long_fl < 155.0) Then  'check for non-zero & valid coords.
+		Alter Object truck_obj
+			Node Add (long_fl, lat_fl) 'add node to current line object
+	Else 'break line, insert into table and restart if no GPS data
+		If ObjectLen(truck_obj, "m") > 0 Then 'only insert line if its length > 0
+			Insert Into truck_tab (Obj, IVU_ID, Trip_Date, St_Time, End_Time, Vehicle_Cat, Axle_Count, Mass_Status, TCM)
+				Values (truck_obj, list_line, date_val, pos_start_time, pos_prev_time, cat_vehicle, cat_axle, cat_mass, cat_tcm)
+		End If
+		Create Pline Into Variable truck_obj 0 'create new empty polyline object
+   		pos_start_time = pos_cur_time 'set new start time for new line
+ 	End If
+	Line Input #2, pos_line 'read next line from pos file						  
+	If EOF(2) Then
+		Exit Do
+	End If 'exit loop if end of pos file                 
+	pos_prev_time = pos_cur_time 'current time becomes previous time
+'	Print Mid$(pos_line, 9, 9)
+'	If Mid$(pos_line, 9, 9) < 0 Then ' If the time formatt is incorrect
+'	print "Loop"
+'	End If
+	pos_cur_time = Mid$(pos_line, 9, 9) 'get next current time from pos file
+	line_num = line_num + 1 'counter for pos file line no.
+EndSub:
+Loop
+If ObjectLen(truck_obj, "m") > 0 Then 'only insert records with valid objects									
+	'end of pos file so write current values to table
+	Insert Into truck_tab (Obj, IVU_ID, Trip_Date, St_Time, End_Time, Vehicle_Cat, Axle_Count, Mass_Status, TCM)
+		Values (truck_obj, list_line, date_val, pos_start_time, pos_cur_time, cat_vehicle, cat_axle, cat_mass, cat_tcm)
+End If
+
+End Sub

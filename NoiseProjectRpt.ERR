@@ -1,0 +1,6 @@
+(noiseprojectrpt.mb:90) Unrecognized command: Next. 
+(noiseprojectrpt.mb:111) Unrecognized command: Loop. 
+(noiseprojectrpt.mb:114) Found: [End sub] while searching for [End Program], [End MapInfo], or [End if]. 
+(noiseprojectrpt.mb:115) Found [] while searching for [next]. 
+(noiseprojectrpt.mb:115) Found [] while searching for [loop]. 
+(noiseprojectrpt.mb:115) Sub/Function without End Sub/Function. 

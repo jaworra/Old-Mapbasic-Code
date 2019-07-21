@@ -1,0 +1,259 @@
+'====================================================================================================================	'
+' Programmer:       John Worrall																									'
+' Last Update:      17/01/2021																										'
+'																																		'	
+' Description:    																													'
+'  - Combines polylines with the same node at start and end																	'									'
+																																		'
+																																		'
+' Furture Works - Combined sub functions 																							'
+'               - Option for user entry or select of files to process												    	'
+' Bugs 		 																									   				 '
+'====================================================================================================================	'
+'
+'                      .         .                           
+'8888888 8888888888   ,8.       ,8.          8 888888888o.   
+'      8 8888        ,888.     ,888.         8 8888    `88.  
+'      8 8888       .`8888.   .`8888.        8 8888     `88  
+'      8 8888      ,8.`8888. ,8.`8888.       8 8888     ,88  
+'      8 8888     ,8'8.`8888,8^8.`8888.      8 8888.   ,88'  
+'      8 8888    ,8' `8.`8888' `8.`8888.     8 888888888P'   
+'      8 8888   ,8'   `8.`88'   `8.`8888.    8 8888`8b       
+'      8 8888  ,8'     `8.`'     `8.`8888.   8 8888 `8b.     
+'      8 8888 ,8'       `8        `8.`8888.  8 8888   `8b.   
+'      8 8888,8'         `         `8.`8888. 8 8888     `88. 
+
+'                                                                                                                                                                                                                       
+'     ,o888888o.    8 8888888888       ,o888888o.       d888888o.   8 888888888o 8888888 8888888888   .8.           8 8888 8 8888                   8888888 8888888888 8 8888888888       ,o888888o.    8 8888        8 
+'    8888     `88.  8 8888          . 8888     `88.   .`8888:' `88. 8 8888    `88.     8 8888        .888.          8 8888 8 8888                         8 8888       8 8888            8888     `88.  8 8888        8 
+' ,8 8888       `8. 8 8888         ,8 8888       `8b  8.`8888.   Y8 8 8888     `88     8 8888       :88888.         8 8888 8 8888                         8 8888       8 8888         ,8 8888       `8. 8 8888        8 
+' 88 8888           8 8888         88 8888        `8b `8.`8888.     8 8888     ,88     8 8888      . `88888.        8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888        8 
+' 88 8888           8 888888888888 88 8888         88  `8.`8888.    8 8888.   ,88'     8 8888     .8. `88888.       8 8888 8 8888                         8 8888       8 888888888888 88 8888           8 8888        8 
+' 88 8888           8 8888         88 8888         88   `8.`8888.   8 888888888P'      8 8888    .8`8. `88888.      8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888        8 
+' 88 8888   8888888 8 8888         88 8888        ,8P    `8.`8888.  8 8888             8 8888   .8' `8. `88888.     8 8888 8 8888                         8 8888       8 8888         88 8888           8 8888888888888 
+' `8 8888       .8' 8 8888         `8 8888       ,8P 8b   `8.`8888. 8 8888             8 8888  .8'   `8. `88888.    8 8888 8 8888                         8 8888       8 8888         `8 8888       .8' 8 8888        8 
+'    8888     ,88'  8 8888          ` 8888     ,88'  `8b.  ;8.`8888 8 8888             8 8888 .888888888. `88888.   8 8888 8 8888                         8 8888       8 8888            8888     ,88'  8 8888        8 
+'     `8888888P'    8 888888888888     `8888888P'     `Y8888P ,88P' 8 8888             8 8888.8'       `8. `88888.  8 8888 8 888888888888                 8 8888       8 888888888888     `8888888P'    8 8888        8 
+'
+'
+'================================================================================================================='
+
+'Library
+'*********************************************************************************************
+Include "mapbasic.def"
+Include "icons.def"
+Include "Menu.def" ' -> not needed?
+
+Declare Sub Main
+
+Sub Main
+
+Dim start, elapsed As integer
+start = Timer()
+
+Print Chr$(12)
+
+'Checks from previous created tables to delete
+If FileExists("C:\HESCmb.tab") Then
+	'Close Table HESCmb
+	Kill "C:\HESCmb.tab"
+	Kill "C:\HESCmb.ID"
+	Kill "C:\HESCmb.MAP"
+	Kill "C:\HESCmb.Dat"
+End If
+
+
+
+'----------------------Dialog Box ' Opens GUI of open tables for user to select data to process.
+
+Dim s_Worm,e_Worm As Float
+Dim x_searchfor,users_ans As Integer
+Dim users_TB As String 'Road to search for   Delete
+Dim FirstDialogAn As SmallInt
+Dim TableCnt,IVar As Integer
+Dim OpenTableNs() As String
+Dim TestC as Object
+
+TableCnt = NumTables()
+
+ReDim OpenTableNs(TableCnt)
+
+For IVar = 1 To TableCnt
+OpenTableNs(IVar) = TableInfo(IVar,TAB_INFO_NAME)
+'Print OpenTableNs(IVar)
+Next
+
+Dim UserBrowsePathFnl As String,ChosenTblNm As String
+Dim ChosenTblID As Integer
+Dim RowRes As Integer
+
+
+Dim TableColmn() As String
+Dim JVar, ColmCnt As Integer
+
+'ColmCnt = NumCols(TestTable) ' Chante table name to standard definition
+ReDim TableColmn(ColmCnt)
+
+For JVar =1 to ColmCnt
+TableColmn(JVar) = ColumnInfo("TestTable","COL"+JVar,COL_INFO_NAME )
+'Print TableColmn(JVar)
+Next
+
+Dim ColRdID,ColSCHID,ColECHID As Integer
+
+Dialog
+Title "Select Table for Polyline Combine"
+Control StaticText ID 2001 Title "Table to process:" Position 15, 20
+Control ListBox Title From Variable OpenTableNs Into IVar ID 2003 Width 180 Position 80,20 Value 1 Into ColRdID
+
+Control OKButton Position 280,120
+Control CancelButton Position 325,120
+Control GroupBox Title "Table Select"Position 5,2 Width 370 Height 150
+If CommandInfo(CMD_INFO_DLG_OK)Then
+
+'---------------------- Run through user selected table objects
+'Print ColRdID
+'Print OpenTableNs(ColRdID)
+'Browse * from OpenTableNs(ColRdID)
+
+' Count on SelTable attributes
+Dim i As Integer
+	i = 0 
+	Fetch First From OpenTableNs(ColRdID)
+	Do While Not EOT(OpenTableNs(ColRdID))
+		i = i + 1 
+		Fetch Next From OpenTableNs(ColRdID)
+	Loop 
+	Print "Number of records in table "+OpenTableNs(ColRdID)+"is: " + i 
+
+
+'---------------------- Create File to place
+Create Table HESCmb
+( townname Char(30) )
+	File "C:\HESCmb.tab"
+Create Map For HESCmb
+Open Table "C:\HESCmb.TAB" As HESCmb Interactive
+
+Dim CmbObject As Object
+
+' Check objects nodes of polylines of same nodes
+Dim j,k As Integer
+Dim j1,k1 as Integer
+j1 = 0
+k1 = 0
+j = 1
+k = 1
+
+
+'Checks from previous created tables to delete
+If FileExists("C:\A.tab") Then
+	'Close Table A
+	Kill "C:\A.tab"
+	Kill "C:\A.ID"
+	Kill "C:\A.MAP"
+	Kill "C:\A.Dat"
+End If
+
+'Checks from previous created tables to delete
+If FileExists("C:\A.tab") Then
+	'Close Table A
+	Kill "C:\B.tab"
+	Kill "C:\B.ID"
+	Kill "C:\B.MAP"
+	Kill "C:\B.Dat"
+End If
+
+
+Dim ResetFirstNumber As Logical ' test to see if you need to record the first object
+
+'First loop - J
+For j=1 to i
+
+	'Save Object and string
+	Print 	TableInfo(1,"TAB_INFO_NREFS")
+	Fetch  Rec j From OpenTableNs(ColRdID)
+
+Next
+
+End If
+End Sub
+
+
+
+
+'Select * from OpenTableNs(ColRdID) where RowID = j Into SelectionA
+'TestA = SelectionA.obj
+'Commit Table SelectionA As "C:\A.TAB"
+
+'Select * from OpenTableNs(ColRdID) where RowID = k Into SelectionB
+'TestB = SelectionB.obj
+'Commit Table SelectionB As "C:\B.TAB"
+
+'Open Table "C:\A.TAB" As A Interactive
+'Open Table "C:\B.TAB" As B Interactive
+
+'Select * from A,B where A.Obj Intersects B.Obj Into SelectionResults
+
+'RowRes = TableInfo("SelectionResults", TAB_INFO_NROWS)
+
+'If the rows intersect append and save(From selection intersect criteria)
+
+'If RowRes > 0 Then
+
+
+' Loop here to find if input objects intersect with HESCmb
+
+'	If ResetFirstNumber = True Then  
+'	Select * from HESCmb,B Where HESCmb.Obj Intersects B.Obj Into SelectionResults2
+'	RowRes = TableInfo("SelectionResults2", TAB_INFO_NROWS)	
+
+'		If RowRes > 0 Then
+'		Print "hello"
+'		Exit sub
+'		End If
+
+'	Else
+
+'	Select * from OpenTableNs(ColRdID) where RowID = j Into SelectionA
+'	Select * from OpenTableNs(ColRdID) where RowID = k Into SelectionB
+'	TestB = SelectionB.obj
+
+'	Print "J-loop:"+J+"  K-loop:"+K+"     ------ COUNTER"   
+
+'	Commit Table SelectionA As "C:\Result1.TAB"
+'	Open Table "C:\Result1.TAB" As Result1 Interactive
+'	Insert Into Result1
+'	Select * From SelectionB
+
+	' Attributes does not come across here!! need to fix up!!
+'	Create Object As Union From Result1 Into Table HESCmb
+
+'	ResetFirstNumber = True 
+'	Drop Table Result1
+'	End If
+'
+'-------------------------------------------------------------------------------------------
+
+'Drop Table A
+'Drop Table B
+
+'End If
+
+'-------------------------------------------------------------------------------------------------------
+
+'Next
+
+'Close Table SelectionA 
+'Close Table SelectionB 
+'commit table HESCmb
+'Else
+
+'End If
+
+'elapsed = Timer()-start
+'print "Time Taken: " +elapsed
+
+'End Sub
+
+
+

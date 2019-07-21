@@ -1,0 +1,168 @@
+' Programmer:       John Worrall
+' Date:             30/06/2010
+' Description:      Custermised users entry of coordinates
+' Updates Required: Update pointers in if function, see below 
+' "G:\gis\Fitzroy_Data\DCDB\r_FTR.TAB" 
+' "G:\gis\Fitzroy_Data\DCDB\p_FTR.TAB"
+' "G:\gis\Fitzroy_Data\Roads\FTR_Roads_DRCL.TAB" 
+'  To add > Future coding to include as separate file
+'		    > Checks each layer and adds accordingly
+
+
+'***********************************************************************************
+'Libraries --->
+Include "mapbasic.def"
+Include "icons.def"
+
+'************************************************************************************
+
+Declare Sub Main
+Declare Sub GEO_COORDS
+Declare Sub CREATE_POINT_TXT(ByVal MyWindow as Integer, ByVal COORDSX as Float,ByVal COORDSY as Float,ByVal COORDSXTXT as String,ByVal COORDSYTXT as String)
+Declare Sub VALID_MAPPER(ByVal MyWindow as Integer)
+Declare sub wait_secs(byval seconds as integer)        
+
+
+ 
+Define BIF_RETURNONLYFSDIRS 1
+Define BIF_DONTGOBELOWDOMAIN 2
+Define MAX_PATH 260
+ 
+Type BrowseInfo
+hWndOwner As Integer
+pIDLRoot As Integer
+pszDisplayName As integer
+lpszTitle As String
+ulFlags As Integer
+lpfnCallBack As Integer
+lParam As Integer
+iImage As Integer
+End Type
+ 
+Declare Function SHBrowseForFolder Lib "shell32" ( lpbi As BrowseInfo) As Integer
+Declare Function SHGetPathFromIDList Lib "shell32" Alias "SHGetPathFromIDList" ( byval pidList As Integer, lpBuffer As String) As Integer
+ 
+
+'---------------------------MAIN--------------------------------------
+Sub Main
+
+Create ButtonPad "Custom1" As PushButton
+Icon MI_ICON_COMMUNICATION_4   
+Calling GEO_COORDS
+HelpMsg "Displays the query dialog\nGPS LAT/LONG Decimal Degrees Query"
+'Drop Table sites           -----     Deletes table
+
+
+End Sub
+
+'---------------------------DD GEOGRAPHIC COORDS PROCEDURE--------------------------------------
+Sub GEO_COORDS
+
+
+Print chr$(12)
+Dim usrPolygon As Object
+
+If SelectionInfo(SEL_INFO_NROWS)<>1 Then
+	Note "Please select a valid Polygon to perform copy"	
+	Exit sub
+End If
+If ObjectInfo(selection.obj,OBJ_INFO_TYPE)<>7 Then
+	Note "Please select a valid Polygon to perform copy"	
+	Exit sub	
+End If
+
+usrPolygon=selection.obj
+
+Dim arrTabs() As String
+Dim nTab As Integer
+
+If NumTables() < 1 Then
+	Note "You must open a Tile Table before continuing."
+Else
+	ReDim arrTabs(NumTables()) 
+	For nTab = 1 To NumTables() 
+	       arrTabs(nTab) = TableInfo(nTab, 1)
+	Next
+		
+End If  
+
+
+'Menu
+Dim iSelection as String
+    Dialog
+              Title "Select Tile Table"
+                     Control PopUpMenu
+                           Position 4, 10
+                           Width 80
+                           Title From Variable arrTabs()          '// Use array to populate values in popupmenu
+                           Into iSelection                          '// Store index of selected value into iSelection when ok button is clicked
+                     Control OkButton
+                           Position 10, 28                    
+
+	iSelection= arrTabs(iSelection)
+	
+	
+	If fileExists(GetFolderPath$(FOLDER_MI_PREFERENCE) +"TempDelete.tab")then
+		Open Table GetFolderPath$(FOLDER_MI_PREFERENCE) +"TempDelete.tab" as DeleteMe
+		Drop Table DeleteMe
+	End If
+	
+	Commit table iSelection as GetFolderPath$(FOLDER_MI_PREFERENCE) +"TempDelete"
+	Open Table GetFolderPath$(FOLDER_MI_PREFERENCE) +"TempDelete" as DeleteMe
+	Delete From DeleteMe
+	Insert into DeleteMe(obj) Values (usrPolygon)
+	Commit Table DeleteMe
+	Pack Table DeleteMe Graphic Data
+	
+	
+	Dim sCmd as String
+	'sCmd = "Select Hotlink_to_image from "& iSelection & " Into refHotlinks"
+	sCmd = "Select Hotlink_to_image from "& iSelection & ",DeleteMe Where "& iSelection & ".obj intersects DeleteMe.Obj Into refHotlinks"
+	Run Command sCmd
+
+	'If valid (more than one row on tmp table)
+	If TableInfo(refHotlinks,TAB_INFO_NROWS) < 1 Then
+		Note "No valid tiles"
+		Exit Sub
+	End If
+	
+	'Select directory to save
+	Dim lpIDList, retVal As Integer
+	Dim sBuffer As String
+	Dim tBrowseInfo As BrowseInfo
+	 
+	tBrowseInfo.hWndOwner = SystemInfo(SYS_INFO_MAPINFOWND)
+	tBrowseInfo.lpszTitle = "Select directory to save datasets"
+	tBrowseInfo.ulFlags = BIF_RETURNONLYFSDIRS + BIF_DONTGOBELOWDOMAIN
+	 
+	lpIDList = SHBrowseForFolder(tBrowseInfo)
+	 
+	If (lpIDList) Then
+		sBuffer = space$(MAX_PATH)
+		retVal = SHGetPathFromIDList(lpIDList, sBuffer)
+	End If
+
+	
+	Dim parentDir,cmdstr as String
+    parentDir=Left$(TableInfo(iSelection,TAB_INFO_TABFILE),Len(TableInfo(iSelection,TAB_INFO_TABFILE))-Len(iSelection)-4)
+	
+	'Iterate through table and copy
+	Fetch first from refHotlinks
+	Do while not EOT(refHotlinks)
+		cmdstr = "cmd /c copy " + parentDir & Left$(refHotlinks.col1,Len(refHotlinks.col1)-3) + "* " + sBuffer
+		Run Program cmdstr	
+		Print "Copying file...."+ Left$(refHotlinks.col1,Len(refHotlinks.col1)-4)
+		call wait_secs(1)
+		Fetch next from refHotlinks
+	Loop		
+	
+	Drop Table DeleteMe
+End Sub
+
+
+Sub wait_secs(byval seconds as integer)
+   dim start as integer
+   start = timer()
+   do while timer() - start <= seconds
+   loop
+End sub 'wait_secs(byval seconds as integer)

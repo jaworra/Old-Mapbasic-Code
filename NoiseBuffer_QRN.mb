@@ -1,0 +1,525 @@
+
+Include "icons.def"
+Include "mapbasic.def"
+Include "menu.def"
+
+
+Declare Sub Main
+Declare Sub GetFileNames (byval sPath As String, byval sFilespec As String, sList() As String)
+Declare Sub BufferGeo(byval SegTbl As String,byval BufferTbl As String)
+Declare Sub BufferStruct()
+Declare Sub BufferLvls()
+Declare Sub CombineColNoise(byval combTbl As String)
+
+
+Type STARTUPINFO
+      cb As Integer
+      lpReserved As String
+      lpDesktop As String
+      lpTitle As String
+      dwX As Integer
+      dwY As Integer
+      dwXSize As Integer
+      dwYSize As Integer
+      dwXCountChars As Integer
+      dwYCountChars As Integer
+      dwFillAttribute As Integer
+      dwFlags As Integer
+      wShowWindow As Smallint
+      cbReserved2 As Smallint
+      lpReserved2 As Integer
+      hStdInput As Integer
+      hStdOutput As Integer
+      hStdError As Integer
+End Type
+
+Type PROCESS_INFORMATION
+    hProcess As Integer
+    hThread As Integer
+    dwProcessID As Integer
+    dwThreadID As Integer
+End Type
+
+Define NORMAL_PRIORITY_CLASS  &H20
+Define INFINITE -1
+Define MAX_PATH 260
+
+Type FILETIME
+	dwLowDateTime As Integer
+	dwHighDateTime As Integer
+End Type
+Type WIN32_FIND_DATA
+	dwFileAttributes As Integer
+	ftCreationTime As FILETIME
+	ftLastAccessTime As FILETIME
+	ftLastWriteTime As FILETIME
+	nFileSizeHigh As Integer
+	nFileSizeLow As Integer
+	dwReserved0 As Integer
+	dwReserved1 As Integer
+	cFileName As String * MAX_PATH
+	cAlternate As String * 14
+End Type
+Define INVALID_HANDLE_VALUE -1
+
+Declare Function FindFirstFile Lib "kernel32"
+	Alias "FindFirstFileA" (ByVal lpFileName As String, lpfindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindNextFile Lib "kernel32"
+	Alias "FindNextFileA" (ByVal hFindFile As Integer, lpFindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindClose Lib "kernel32"
+	Alias "FindClose" (ByVal hFindFile As Integer) As Integer
+	
+	
+
+Declare Function CloseHandle Lib "kernel32" (hObject As Integer) As smallint
+Declare Function WaitForSingleObject Lib "kernel32" (ByVal hHandle As Integer, 
+													 ByVal dwMilliseconds As Integer) 
+													 As Integer
+													 
+Declare Function CreateProcessA Lib "kernel32" (ByVal lpApplicationName As Integer, 
+												ByVal lpCommandLine As String, 
+												ByVal lpProcessAttributes As Integer, 
+												ByVal lpThreadAttributes As Integer, 
+												ByVal bInheritHandles As Integer, 
+												ByVal dwCreationFlags As Integer, 
+												ByVal lpEnvironment As Integer, 
+												ByVal lpCurrentDirectory As Integer, 
+												lpStartupInfo As STARTUPINFO, 
+												lpProcessInformation As PROCESS_INFORMATION) 
+												As Integer	
+
+'Make Menu
+Sub Main
+'Create Menu "SCDB" As
+'	"Import" Calling import_sub,
+'	"(-",
+'	"Help" Calling help_sub,
+'	"Exit" Calling exit_sub
+'Alter Menu Bar Add "SCDB"
+Print Chr$(12)
+
+'Exit Sub
+'call BufferLvls()
+'Exit Sub
+Close all
+Dim SegTbl,BufferTbl As String
+
+
+
+'Open and clear tables
+'SegTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\Deliverables\20130705\NEW_SEQ_Meterage_Segemented.TAB"
+'BufferTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\Deliverables\20130704\NEW_GeoBuffer.TAB"
+
+'SegTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\Deliverables\20131202\Working\NC_All_Rail.TAB"
+'BufferTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\Deliverables\20131202\Working\NC_All_Rail_Buffer.TAB"
+
+
+SegTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\Deliverables\20140108\WesternLineMGA\TAB\WL.tab"
+BufferTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\Deliverables\20140108\Final\WL_BUFFER.tab"
+
+
+
+
+'Delete if final table exist
+If fileExists(BufferTbl)Then
+	Open Table BufferTbl as DeleteMe
+	Drop Table DeleteMe
+End If
+
+'Create final table
+Open table SegTbl as SegToBuffer
+Select * from SegToBuffer where Col1 into NewTbl
+Commit Table NewTbl as BufferTbl
+Open Table BufferTbl As BufferMap
+Delete from BufferMap 
+Commit Table BufferMap
+
+'Create Columns if they don't exist
+Dim StructLog,NoiseLog,LvlCros As Logical
+Dim i As Integer
+
+For i=1 to TableInfo(BufferMap,TAB_INFO_NCOLS)
+	print ColumnInfo(BufferMap,"col"+i,COL_INFO_NAME)
+	If ColumnInfo(BufferMap,"col"+i,COL_INFO_NAME)="Structure_Type" Then
+		StructLog=True
+	End If
+	If ColumnInfo(BufferMap,"col"+i,COL_INFO_NAME)="NOISE_CAT" Then
+		NoiseLog=True
+	End If
+	If ColumnInfo(BufferMap,"col"+i,COL_INFO_NAME)="Lvl_Crossing" Then
+		LvlCros=True
+	End If
+Next
+If StructLog=False Then
+	Alter Table BufferMap(Add Structure_Type Char (60)) 	
+End If
+If NoiseLog=False Then
+	Alter Table BufferMap(Add NOISE_CAT Char (20))
+End If
+If LvlCros=False Then
+	Alter Table BufferMap(Add Lvl_Crossing Char (12))
+End If
+	
+'Call Methods
+Call BufferGeo(SegTbl,BufferTbl)
+Call CombineColNoise(BufferTbl)
+
+Exit Sub
+call BufferLvls()
+
+'	SegTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\20130701\SEQ_Meterage_Segemented.TAB"
+'	BufferTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\20130701\GeoBuffer.TAB"
+'	Close all 
+'	Open table SegTbl as SegToBuffer
+'	If fileExists(BufferTbl)Then
+'		Open Table BufferTbl as DeleteMe
+'		Drop Table DeleteMe
+'	End If
+'	'Save a copy of table
+'	Select * from SegToBuffer where Col1 into NewTbl
+'	Commit Table NewTbl as Buf
+End Sub
+
+
+Sub CombineColNoise(byval combTbl As String)
+close all
+Open table combTbl as CombCol
+
+Select * from CombCol where NOISE_CAT = "X70" into Selection
+Objects Combine Data NOISE_CAT = "X70"
+Select * from CombCol where NOISE_CAT = "X75" into Selection
+Objects Combine Data NOISE_CAT = "X75"
+Select * from CombCol where NOISE_CAT = "X80" into Selection
+Objects Combine Data NOISE_CAT = "X80"
+Select * from CombCol where NOISE_CAT = "X85" into Selection
+Objects Combine Data NOISE_CAT = "X85"
+Commit Table CombCol
+Pack Table CombCol Graphic Data
+
+'Sort by Noise Category
+
+If FileExists ("C:\Temp\SortedTbl.tab")Then
+	Open Table "C:\Temp\SortedTbl.tab" As DeleteMe
+	Drop Table DeleteMe
+End If
+
+Commit Table CombCol as "C:\Temp\SortedTbl.tab"
+Drop Table CombCol
+
+Open Table "C:\Temp\SortedTbl.tab" as SortedTbl
+Select * from SortedTbl order by NOISE_CAT asc into tempSortTbl
+Commit Table tempSortTbl as combTbl
+Close Table tempSortTbl
+Close Table SortedTbl
+Open Table combTbl as CombCol
+
+End Sub
+
+
+Sub BufferLvls()
+	Dim SegTbl,BufferTbl As String
+	Dim X85,X80,X75,X70,BufferMax As Integer
+	Dim PrefixID, LvlCrossingID As String
+	Dim BufferObj,CurrentObj As Object 
+	SegTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\Deliverables\20132806\LvlCrossings\ToAdd.TAB"
+	BufferTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\Deliverables\20131202\LvlCrossings\LvlBuffer.TAB"
+	Close all
+	Open table SegTbl as SegToBuffer
+	If fileExists(BufferTbl)Then
+		Open Table BufferTbl as DeleteMe
+		Drop Table DeleteMe
+	End If
+	'Save a copy of table
+	Select * from SegToBuffer where Col1 into NewTbl
+	Commit Table NewTbl as BufferTbl
+	Open Table BufferTbl As BufferMap
+	Delete from BufferMap 
+	
+	Fetch First From SegToBuffer
+	Do While Not EOT(SegToBuffer)
+		LvlCrossingID = SegToBuffer.Lvl_Crossing				
+		If LvlCrossingID <> "" Then
+			PrefixID = SegToBuffer.PREFIX
+			CurrentObj = SegToBuffer.obj
+			If PrefixID = "NC" or PrefixID = "HM" or PrefixID = "PA" or PrefixID = "FS" or PrefixID = "NC" or PrefixID = "ML" or PrefixID = "AR" or PrefixID = "BN_F" or PrefixID = "IW" or PrefixID = "EZ" Then
+				BufferMax = 250 'Freight
+				X85=52+29 
+				X80=77+142	
+				X75=219+328	
+				X70=547+607	
+
+			ElseIf PrefixID = "AT" Then
+				BufferMax = 150 'Passenger
+				X85=30+6 
+				X80=66+10 
+				X75=129+17
+				X70=236+30 
+			Else 
+			
+			'Asssumption everything else statewide is Frieght -> as advised by Mark Bastone on 03/11/2013
+				BufferMax = 250 'Freight
+				X85=52+29 
+				X80=77+142	
+				X75=219+328	
+				X70=547+607	
+				
+				'BufferMax = 150 'Passenger
+				'X85=30+36 
+				'X80=66+63	
+				'X75=129+107 
+				'X70=236+188	
+			End If
+			
+			BufferObj = Buffer(CurrentObj, 20, Minimum(X85,BufferMax), "m")
+			Insert Into BufferMap(Obj,PREFIX,Lvl_Crossing,NOISE_CAT)
+				Values (BufferObj,PrefixID,LvlCrossingID,"X85")
+				
+			BufferObj = Buffer(CurrentObj, 20, Minimum(X80,BufferMax), "m")
+			Insert Into BufferMap(Obj,PREFIX,Lvl_Crossing,NOISE_CAT)
+				Values (BufferObj,PrefixID,LvlCrossingID,"X80")			
+				
+			BufferObj = Buffer(CurrentObj, 20, Minimum(X75,BufferMax), "m")
+			Insert Into BufferMap(Obj,PREFIX,Lvl_Crossing,NOISE_CAT)
+				Values (BufferObj,PrefixID,LvlCrossingID,"X75")		
+				
+			BufferObj = Buffer(CurrentObj, 20, Minimum(X70,BufferMax), "m")
+			Insert Into BufferMap(Obj,PREFIX,Lvl_Crossing,NOISE_CAT)
+				Values (BufferObj,PrefixID,LvlCrossingID,"X70")			
+			
+		End If
+		Fetch Next from SegToBuffer
+	Loop
+	Commit Table BufferMap
+	Pack Table BufferMap Graphic Data
+End Sub
+
+Sub BufferStruct()
+	Dim SegTbl,BufferTbl As String
+	Dim X85,X80,X75,X70,BufferMax As Integer
+	Dim PrefixID, SturcturesID As String
+	Dim BufferObj,CurrentObj As Object 
+	SegTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\SEQ_Meterage_Segemented.TAB"
+	BufferTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\StuctBuffer.TAB"
+	Close all
+	Open table SegTbl as SegToBuffer
+	If fileExists(BufferTbl)Then
+		Open Table BufferTbl as DeleteMe
+		Drop Table DeleteMe
+	End If
+	'Save a copy of table
+	Select * from SegToBuffer where Col1 into NewTbl
+	Commit Table NewTbl as BufferTbl
+	Open Table BufferTbl As BufferMap
+	Delete from BufferMap 
+	
+	Fetch First From SegToBuffer
+	Do While Not EOT(SegToBuffer)
+		SturcturesID = SegToBuffer.Structure_Type					
+		If SturcturesID <> "" Then
+			PrefixID = SegToBuffer.PREFIX
+			CurrentObj = SegToBuffer.obj
+			If PrefixID = "NC" or PrefixID = "HM" or PrefixID = "PA" or PrefixID = "FS" or PrefixID = "NC" or PrefixID = "ML" or PrefixID = "AR" or PrefixID = "BN_F" or PrefixID = "IW" or PrefixID = "EZ" Then
+				BufferMax = 250 'Freight
+				If SturcturesID = "Concrete" Then
+					X85=7
+					X80=18
+					X75=48 
+					X70=96
+				ElseIf SturcturesID = "Steel" Then
+					X85=154
+					X80=385
+					X75=786 
+					X70=1389
+				ElseIf SturcturesID = "Timber" Then
+					X85=52
+					X80=142
+					X75=328 
+					X70=607
+				Else 
+					Print "NONE FOUND!!"
+				End If
+			ElseIf PrefixID = "AT" Then
+				BufferMax = 150 'Passenger
+				If SturcturesID = "Concrete" Then
+					X85=6
+					X80=10
+					X75=170 
+					X70=30
+				ElseIf SturcturesID = "Steel" Then
+					X85=6
+					X80=10
+					X75=170 
+					X70=30
+				ElseIf SturcturesID = "Timber" Then
+					X85=6
+					X80=10
+					X75=170 
+					X70=30
+				Else 
+					Print "NONE FOUND2!!"
+				End If
+			Else 
+				BufferMax = 150 'Passenger
+				If SturcturesID = "Concrete" Then
+					X85=6
+					X80=10
+					X75=17 
+					X70=30
+				ElseIf SturcturesID = "Steel" Then
+					X85=84
+					X80=144
+					X75=249 
+					X70=438
+				ElseIf SturcturesID = "Timber" Then
+					X85=36
+					X80=63
+					X75=107 
+					X70=188
+				Else 
+					Print "NONE FOUND3!!"
+				End If
+			End If
+'			Print "Structures: "+SturcturesID
+'			Print "X85: "+X85+" X80: "+X80+" X75: "+X75+" X70: "+X70
+'			Create Buffer Object here	
+			BufferObj = Buffer(CurrentObj, 20, Minimum(X85,BufferMax), "m")
+			Insert Into BufferMap(Obj,PREFIX,Structure_type,NOISE_CAT)
+				Values (BufferObj,PrefixID,SturcturesID,"X85")
+				
+			BufferObj = Buffer(CurrentObj, 20, Minimum(X80,BufferMax), "m")
+			Insert Into BufferMap(Obj,PREFIX,Structure_type,NOISE_CAT)
+				Values (BufferObj,PrefixID,SturcturesID,"X80")			
+				
+			BufferObj = Buffer(CurrentObj, 20, Minimum(X75,BufferMax), "m")
+			Insert Into BufferMap(Obj,PREFIX,Structure_type,NOISE_CAT)
+				Values (BufferObj,PrefixID,SturcturesID,"X75")		
+				
+			BufferObj = Buffer(CurrentObj, 20, Minimum(X70,BufferMax), "m")
+			Insert Into BufferMap(Obj,PREFIX,Structure_type,NOISE_CAT)
+				Values (BufferObj,PrefixID,SturcturesID,"X70")			
+			
+		End If
+		Fetch Next from SegToBuffer
+	Loop
+	Commit Table BufferMap
+	Pack Table BufferMap Graphic Data
+End Sub
+
+Sub BufferGeo(byval SegTbl As String,byval BufferTbl As String)
+	'Dim SegTbl,BufferTbl As String
+	Dim X85,X80,X75,X70,BufferMax,i As Integer
+	Dim PrefixID, StraightsCurveID As String
+	Dim BufferObj,CurrentObj As Object 
+'	SegTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\20130701\SEQ_Meterage_Segemented.TAB"
+'	BufferTbl = "C:\Documents and Settings\jaworra\Desktop\WorkingQRNDATA\20130701\GeoBuffer.TAB"
+'	Close all 
+'	Open table SegTbl as SegToBuffer
+'	If fileExists(BufferTbl)Then
+'		Open Table BufferTbl as DeleteMe
+'		Drop Table DeleteMe
+'	End If
+'	Save a copy of table
+'	Select * from SegToBuffer where Col1 into NewTbl
+'	Commit Table NewTbl as BufferTbl
+'	Open Table BufferTbl As BufferMap
+'	Delete from BufferMap 
+	Open table SegTbl as SegToBuffer
+	Open Table BufferTbl As BufferMap
+	
+	
+	Fetch First From SegToBuffer
+	Do While Not EOT(SegToBuffer)
+		StraightsCurveID = SegToBuffer.Geometry
+		PrefixID = SegToBuffer.PREFIX
+		CurrentObj = SegToBuffer.obj		
+		'Straights	
+		If PrefixID = "NC" or PrefixID = "HM" or PrefixID = "PA" or PrefixID = "FS" or PrefixID = "NC" or PrefixID = "ML" or PrefixID = "AR" or PrefixID = "BN_F" or PrefixID = "IW" or PrefixID = "EZ" Then
+			BufferMax = 250 'Freight
+			X85=42
+			X80=77
+			X75=219
+			X70=547
+		ElseIf PrefixID = "AT" Then
+			BufferMax = 150 'Passenger
+			X85=30+6
+			X80=66+10 
+			X75=129+17
+			X70=236+30 
+		Else 
+			BufferMax = 150 'Passenger
+			X85=30
+			X80=66
+			X75=130
+			X70=236
+		End IF
+
+		'Curves		
+		If StraightsCurveID = "Curve" Then
+			If PrefixID = "NC" or PrefixID = "HM" or PrefixID = "PA" or PrefixID = "FS" or PrefixID = "NC" or PrefixID = "ML" or PrefixID = "AR" or PrefixID = "BN_F" or PrefixID = "IW" or PrefixID = "EZ" Then
+				BufferMax = 250 'Freight
+				X85=X85+25
+				X80=X80+69
+				X75=X75+169
+				X70=X70+324
+
+			ElseIf PrefixID = "AT" Then
+				BufferMax = 150 'Passenger
+				X85=30+6
+				X80=66+10
+				X75=129+17
+				X70=236+30
+			Else 
+				BufferMax = 150 'Passenger
+				X85=X85+19
+				X80=X80+34
+				X75=X75+57
+				X70=X70+100	
+		End If		
+			
+		End If
+		
+		BufferObj = Buffer(CurrentObj, 20, Minimum(X85,BufferMax),"m")
+		Insert Into BufferMap(Obj,PREFIX,Geometry,NOISE_CAT)
+			Values (BufferObj,PrefixID,StraightsCurveID,"X85")
+				
+		BufferObj = Buffer(CurrentObj, 20, Minimum(X80,BufferMax),"m")
+		Insert Into BufferMap(Obj,PREFIX,Geometry,NOISE_CAT)
+			Values (BufferObj,PrefixID,StraightsCurveID,"X80")			
+				
+		BufferObj = Buffer(CurrentObj, 20, Minimum(X75,BufferMax),"m")
+		Insert Into BufferMap(Obj,PREFIX,Geometry,NOISE_CAT)
+			Values (BufferObj,PrefixID,StraightsCurveID,"X75")		
+				
+		BufferObj = Buffer(CurrentObj, 20, Minimum(X70,BufferMax),"m")
+		Insert Into BufferMap(Obj,PREFIX,Geometry,NOISE_CAT)
+			Values (BufferObj,PrefixID,StraightsCurveID,"X70")			
+
+	Fetch Next from SegToBuffer
+	Loop
+
+	'Delete original records
+	Select * from BufferMap where NOISE_CAT ="" into DeleteME
+	Delete from DeleteME
+	Commit Table BufferMap
+	Pack Table BufferMap Graphic Data
+End Sub
+
+Sub GetFileNames (ByVal sPath As String, ByVal sFilespec As String, sList() As String)
+Dim hFindFile, nStatus As Integer
+Dim f As WIN32_FIND_DATA
+Dim i As Integer
+
+hFindFile = FindFirstFile (sPath + sFilespec, f)
+If hFindFile <> INVALID_HANDLE_VALUE Then
+	Do
+		If (f.dwFileAttributes \ 16) Mod 2 = 0 Then
+			i = i + 1
+			ReDim sList(i)
+			sList(i) = f.cFilename
+		End If
+		nStatus = FindNextFile (hFindFile, f)
+	Loop While nStatus = 1
+End If
+nStatus = FindClose (hFindFile)
+End Sub
+

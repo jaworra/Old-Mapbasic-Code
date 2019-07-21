@@ -1,0 +1,24 @@
+!table
+!version 300
+!charset WindowsLatin1
+
+Definition Table
+  Type NATIVE Charset "WindowsLatin1"
+  Fields 12
+    MenuOrder Smallint ;
+    MenuType Smallint ;
+    MenuName Char (100) ;
+    MenuWorkspace Char (100) ;
+    MenuApplication Char (100) ;
+    MenuHelpStr Char (100) ;
+    MenuDisplayMode Smallint ;
+    ynLayerControl Logical ;
+    ynFindTools Logical ;
+    ynLoadCT Logical ;
+    MenuPassword Char (100) ;
+    ynCloseAll Logical ;
+begin_metadata
+"\IsReadOnly" = "FALSE"
+"\MapInfo" = ""
+"\MapInfo\TableID" = "535d2810-67d9-49e7-9960-3e9d5c31b9ec"
+end_metadata

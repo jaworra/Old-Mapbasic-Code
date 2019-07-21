@@ -1,0 +1,46 @@
+' Polyline change in direction
+' Programmer:	  John Worall
+' Date:           18/07/2013
+' Description:    Reverse direction of a polyline
+' To Add:
+' Requirments : File with a polyline
+'Library
+'*********************************************************************************************
+Include "mapbasic.def"
+Declare Sub Main
+
+Sub Main
+Dim PolyTableRef As String
+Dim i,j As Integer
+Dim OutObject As Object
+print chr$(12)
+Close all
+PolyTableRef= FileOpenDlg("C:\Documents and Settings\jaworra\Desktop" , "", "TAB", "Select Dataset to QA/QC")
+If PolyTableRef= "" Then
+	Print "operation cancelled"
+	Exit Sub
+End If
+Open Table PolyTableRef As PolylineTbl
+j=1
+Fetch First From PolylineTbl
+Do While Not EOT(PolylineTbl)
+	Do Case ObjectInfo(PolylineTbl.obj,OBJ_INFO_TYPE)
+		Case OBJ_TYPE_LINE
+		Case OBJ_TYPE_PLINE 
+			If ObjectInfo(PolylineTbl.obj,OBJ_INFO_NPNTS) > 1 Then
+				For i = 1 to ObjectInfo(PolylineTbl.obj,OBJ_INFO_NPNTS) 'Reads line Node Coords and Reverses order to change line direction
+						If i = 1 Then 
+							Create Pline Into Variable OutObject 1 (ObjectNodeX(PolylineTbl.obj,1,i),ObjectNodeY(PolylineTbl.obj,1,i)) Pen ObjectInfo(PolylineTbl.obj,OBJ_INFO_PEN)
+						Else
+							Alter object OutObject node add(ObjectNodeX(PolylineTbl.obj,1,i),ObjectNodeY(PolylineTbl.obj,1,i))
+						End If				
+				Next 	
+				Update PolylineTbl Set obj = OutObject Where RowID = j	
+				Commit Table PolylineTbl
+			End If		
+		Case OBJ_TYPE_REGION
+	End Case
+	j=j+1
+	Fetch Next From PolylineTbl
+Loop
+End Sub

@@ -1,0 +1,399 @@
+' Programmer:       John Worrall
+' Date:             26/11/2013
+' Description:      GUI input table for PRISM 
+' 					Bypass bug in Mapinfo for data entry error. 
+
+Include "menu.def"
+Include "mapbasic.def"
+Include "icons.def"
+Declare Sub Main
+Declare Sub exit_sub
+Declare Sub about_sub
+Declare Sub PRISM_ENTRY
+
+
+'Make the Menu
+Sub Main
+'GUI Option 1 - Title Bar	
+'Create Menu "Update NT Tables" As
+'	"Update Watercourse" Calling Watercourse,
+'	"Update Road Asses" Calling RoadAsses,
+'	"(-",
+'	"About" Calling about_sub,
+'	"Exit" Calling exit_sub
+'Alter Menu Bar Add "Update NT Tables"
+'Print Chr$(12)
+
+'GUI Option 2 - ButtonPad Bar
+Create ButtonPad "PRISM Title GUI" As PushButton
+Icon MI_ICON_MB_1
+Calling PRISM_ENTRY
+HelpMsg "Update Approved_Planning_template Table\n"
+
+Alter ButtonPad "PRISM Title GUI" Fixed
+Add Separator
+Add PushButton
+Icon MI_ICON_MAPSYMB_10
+Calling about_sub
+HelpMsg "About\n"
+
+Alter ButtonPad "PRISM Title GUI" Fixed
+Add Separator
+Add PushButton
+'MI_ICON_LETTERS_X
+Icon MI_ICON_SIGNS_1
+Calling exit_sub
+HelpMsg "Exit\n"
+Alter ButtonPad "PRISM Title GUI" Fixed ToolbarPosition (2,0)
+
+End Sub
+
+'Exit
+Sub exit_sub
+	End Program
+End Sub
+
+'About
+Sub about_sub
+Dim message As String
+	message = "PRISM Update  1.1  "
+	message = message + Chr$(13)
+	message = message + "by Geospatial Technologies - JAW"
+	message = message + Chr$(13)
+	message = message + Chr$(13)
+	message = message + "Extend Planning functionality."
+	message = message + Chr$(13)
+
+	Note message
+End Sub
+
+Sub PRISM_ENTRY
+
+
+print chr$(12)
+
+Dim wCol1,RowNum,i,j As Integer
+Dim wCol2,wCol3,wCol4,wCol5,wCol6,wCol7,wCol8,wCol9,wCol10,wCol11,wCol12,wCol13,wCol14,wCol15,wCol16,wCol17,wCol20,wCol21,wCol22,wCol23,wCol24,wCol25 As String
+Dim TblOpen As Logical
+Dim wCol18,wCol19 As Float
+
+'27 Records
+
+OnError Goto UpdateTblError
+AfterUpdateTblError:
+'Check table is open
+For i=1 to numtables()
+	If tableinfo(i,1) = "Approved_Planning_template" Then
+	TblOpen=True 
+	End If
+Next
+
+If TblOpen = True Then 
+	
+	'Don't need this>>>>.
+	Fetch Last from Approved_Planning_template
+	Fetch Prev from Approved_Planning_template
+		wCol1=Approved_Planning_template.Col1+1 'Incrementation change based of last row 
+	Fetch Next from Approved_Planning_template
+	
+	'GUI
+		Dialog
+		Title "Approved_Planning_template"
+				
+		Control StaticText
+			Title "ID:"
+			Position 20,17
+		
+		Control EditText
+			Value wCol1
+			Position 20,27
+			Into wCol1
+		
+		Control StaticText
+			Title "Project_Number:"
+			Position 120,17
+		
+		Control EditText
+			Value wCol2
+			Position 120,27
+			Into wCol2
+	'2		
+		Control StaticText
+			Title "Project_Name:"
+			Position 220,17
+		
+		Control EditText
+			Value wCol3
+			Position 220,27
+			Into wCol3
+		
+		Control StaticText
+			Title "Mode_Definition:"
+			Position 320,17
+		
+		Control EditText
+			Value wCol4
+			Position 320,27
+			Into wCol4		
+	'4	
+		Control StaticText
+			Title "Planning_For:"
+			Position 420,17
+		
+		Control EditText
+			Value wCol5
+			Position 420,27
+			Into wCol5
+		
+		Control StaticText
+			Title "District:" 
+			Position 520,17
+			
+		Control PopupMenu
+			Title "FND;NTD;NWD;MWD;FTD;CWD;WBD;SWD;DDD;NCD;MTD;SCD"
+			Position 520,27	Width 80
+			Into j
+ 
+	'Row 2	
+		Control StaticText
+			Title "LGA:"
+			Position 20,47
+		
+		Control EditText
+			Value wCol7
+			Position 20,57
+			Into wCol7
+		
+		Control StaticText
+			Title "Planning_Category:"
+			Position 120,47
+		
+		Control EditText
+			Value wCol8
+			Position 120,57
+			Into wCol8
+	'2
+		Control StaticText
+			Title "Gazettal_Reference_Datel:"
+			Position 220,47
+		
+		Control EditText
+			Value wCol9
+			Position 220,57
+			Into wCol9
+		
+		Control StaticText
+			Title "TMR_Contact:"
+			Position 320,47
+		
+		Control EditText
+			Value wCol10
+			Position 320,57
+			Into wCol10
+	'4
+		Control StaticText
+			Title "Date_Planning_Approval:"
+			Position 420,47
+		
+		Control EditText
+			Value wCol11
+			Position 420,57
+			Into wCol11
+		
+		Control StaticText
+			Title "DMS_Container_ID:"
+			Position 520,47
+		
+		Control EditText
+			Value wCol12
+			Position 520,57
+			Into wCol12
+		
+	'Row 3	
+		Control StaticText
+			Title "Saved_in_IRC:"
+			Position 20,77
+
+		Control PopupMenu
+			Title "Yes;No"
+			Position 20,87	Width 80
+			Into wCol13	
+		
+		Control StaticText
+			Title "Primary_Road_Rail_Bus_ID_Number:"
+			Position 120,77
+		
+		Control EditText
+			Value  wCol14
+			Position 120,87
+			Into  wCol14
+	'2
+		Control StaticText
+			Title "Secondary_Road_Rail_Bus_ID_Numb:"
+			Position 220,77
+		
+		Control EditText
+			Value wCol15
+			Position 220,87
+			Into wCol15
+		
+		Control StaticText
+			Title "Road_Rail_Bus_Name:"
+			Position 320,77
+		
+		Control EditText
+			Value wCol16
+			Position 320,87
+			Into wCol16
+	'4
+		Control StaticText
+			Title "Road_Rail_Bus_Alias:"
+			Position 420,77
+		
+		Control EditText
+			Value wCol17
+			Position 420,87
+			Into wCol17
+	'5
+		Control StaticText
+			Title "TDist_start:"
+			Position 520,77
+		
+		Control EditText
+			Value wCol18
+			Position 520,87
+			Into wCol18			
+			
+	'Row 4
+		Control StaticText
+			Title "TDist_end:"
+			Position 20,107
+		
+		Control EditText
+			Value  wCol19
+			Position 20,117
+			Into  wCol19
+		
+		Control StaticText
+			Title "Total_Length:"
+			Position 120,107
+		
+		Control EditText
+			Value  wCol20
+			Position 120,117
+			Into  wCol20
+	'2
+		Control StaticText
+			Title "Historical_Planning:"
+			Position 220,107
+			
+		Control PopupMenu
+			Title "Yes;No"
+			Position 220,117	Width 80
+			Into wCol21		
+		
+		Control StaticText
+			Title "Centreline_version_date:"
+			Position 320,107
+		
+		Control EditText
+			Value wCol22
+			Position 320,117
+			Into wCol22
+	'4
+		Control StaticText
+			Title "Est_Year_of_Delivery:"
+			Position 420,107
+		
+		Control EditText
+			Value wCol23
+			Position 420,117
+			Into wCol23		
+	'5
+		Control StaticText
+			Title "Est_Value_Corridor_Land:"
+			Position 520,107
+		
+		Control EditText
+			Value wCol24
+			Position 520,117
+			Into wCol24					
+		
+	'Row 5
+		Control StaticText
+			Title "Action_Reqd_Protect_Corridor:"
+			Position 20,137
+		
+		Control EditText
+			Value  wCol25
+			Position 20,147
+			Into  wCol25
+		
+		'210
+		Control OKButton
+			Position 550,180
+		Control CancelButton
+			Position 490,180
+	
+		If CommandInfo(CMD_INFO_DLG_OK) Then
+'			Insert Into Approved_Planning_template(Col1)
+'				Values("")
+
+			'Set Colm 6
+			Do Case j
+				Case 1
+					wCol6="FND"
+				Case 2
+					wCol6="NTD"
+				Case 3
+					wCol6="NWD"
+				Case 4
+					wCol6="MWD"
+				Case 5
+					wCol6="FTD"
+				Case 6
+					wCol6="CWD"
+				Case 7
+					wCol6="WBD"
+				Case 8
+					wCol6="SWD"
+				Case 9
+					wCol6="DDD"
+				Case 10
+					wCol6="NCD"
+				Case 11
+					wCol6="MTD"
+				Case 12
+					wCol6="SCD"
+			End Case
+			
+			If wCol21="1" Then
+				wCol21="Yes"
+			Else
+				wCol21="No"
+			End If
+			
+			If wCol13="1" Then
+				wCol13="Yes"
+			Else
+				wCol13="No"
+			End If			
+				
+			RowNum=Approved_Planning_template.RowID
+			Update Approved_Planning_template set Col1=wCol1,Col2=wCol2,Col3=wCol3,Col4=wCol4,Col5=wCol5,Col6=wCol6,Col7=wCol7,Col8=wCol8,Col9=wCol9,Col10=wCol10,Col11=wCol11,Col12=wCol12,Col13=wCol13,Col14=wCol14,Col15=wCol15,Col16=wCol16,Col17=wCol17,Col18=wCol18,Col19=wCol19,Col20=wCol20,Col21=wCol21,Col22=wCol22,Col23=wCol23,Col24=wCol24,Col25=wCol25
+			Where RowID = RowNum
+			Commit Table Approved_Planning_template
+		End If
+Else
+		Note "Please open Approved_Planning_template Table"
+End If
+
+Exit Sub
+UpdateTblError:
+Print "Unsuccesful - incorrect entry! "+chr$(10)
+OnError GoTo 0
+Resume AfterUpdateTblError
+
+
+End Sub
+

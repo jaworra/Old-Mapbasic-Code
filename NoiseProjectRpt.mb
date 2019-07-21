@@ -1,0 +1,115 @@
+' Definition File 	Metadata Extraction
+' Project	        
+' Programmer:       John Worrall
+' Last UpDate:      06/11/2012      
+' Version:          AppVersion (see below)
+' Description:      Extracts metadata to report file
+' Future Works:     Create XML OGC compliant metadata file
+'					
+' Function Arguments
+
+Include "mapbasic.def"
+
+Declare Sub Main
+
+'*****************
+Sub Main
+'*****************
+Print Chr$(12) 'Clear Output
+
+close all
+Dim NoiseProjctRpt, NoiseProjctTbl As String
+'NoiseProjctTbl = "G:\Geospatial\GIS\JohnW\Request\RichardJ\NoiseProject\AlsProjectRoadsStage2.TAB"
+NoiseProjctTbl = "C:\TEMP\AlsProjectRoadsStage2_TESTDisaggregate"'"C:\TEMP\AlsProjectRoadsStage2_Disaggregate.TAB"
+
+Open table NoiseProjctTbl as Extents
+'NoiseProjctRpt =  PathToDirectory$(NoiseProjctTbl) & "NoiseStatistics.txt"k
+NoiseProjctRpt = "G:\Geospatial\GIS\JohnW\Request\RichardJ\NoiseProject\NoiseStatistic_Dissagregate.txt"
+NoiseProjctTbl = "G:\Geospatial\GIS\JohnW\Request\RichardJ\NoiseProject\NoiseStatistic_Tbl.tab"
+
+If FileExists(NoiseProjctRpt) Then
+	kill NoiseProjctRpt
+ElseIf FileExists(NoiseProjctTbl) Then
+	kill NoiseProjctTbl
+End If
+
+Commit Table Extents as NoiseProjctTbl
+Open Table NoiseProjctTbl as FinalTbl
+Delete From FinalTbl
+Commit Table FinalTbl
+Pack Table FinalTbl Graphic Data
+
+
+Open File NoiseProjctRpt For Output As #1
+Print #1, "RowID, ALS_Name, Overlap Area, Overlap Proportion"
+
+Set Area Units "sq km" 
+Dim RowCurId, RowEndId,h,i,j As Integer
+Dim OvLapOrg, OvLapCheck As Object
+Dim OvLapArea,OvLapProp As Float
+RowCurId = 1
+RowEndId = Tableinfo(Extents,TAB_INFO_NROWS)
+
+Dim Org_ALS_Name, Org_Year As String
+Dim Com_ALS_Name, Com_Year As String
+Dim OrgObj,DupObj,FinObj As Object
+Dim NoOverlap As Logical
+Dim OvlapObj As Object
+
+Fetch First From Extents
+Do While Not EOT(Extents)
+	NoOverlap=False
+	Print Extents.RowID & "/" & RowEndId
+	OvLapOrg = Extents.obj 
+	OrgObj = OvLapOrg
+	Org_Year = Extents.Year
+	Org_ALS_Name = Extents.ALS_Name
+	'Print ObjectInfo(OvLapOrg,OBJ_INFO_NPNTS)
+
+	For i=1 to RowEndId'i=RowCurId + 1 to RowEndId
+		'Print "A " & Extents.RowID & " -Checking " & "B " & i
+		If i <> RowCurId Then 
+			'print "i" & i
+			'print "rowcruId" & RowCurId 
+			Select * From Extents Where RowID = i into QResults
+			If QResults.obj Then 'ObjectInfo(OvLapCheck,OBJ_INFO_NONEMPTY) Then
+				Com_ALS_Name = QResults.ALS_Name
+				Com_Year = QResults.Year
+				OvLapCheck = QResults.obj
+	
+			 'Make sure the return value is a valid object.
+				'Analysis - HERE
+				OvLapArea = AreaOverlap(OvLapOrg,OvLapCheck)
+				If OvLapArea > 0.2 Then  ' Change this to a criteria less than 1 sq km
+					NoOverlap=True
+			End If 	
+		End If
+	Next
+
+	'Add a no overlap area with the current row attributes and objects
+	If NoOverlap=False Then
+		Select * From Extents where RowId = RowCurId into CheckResults 
+		Insert Into FinalTbl 
+		Select * From CheckResults
+	ElseIf NoOverlap=True Then
+		Select * From Extents where RowId = RowCurId into CheckResults 
+		Insert Into FinalTbl 
+		Select * From CheckResults
+		j = TableInfo( FinalTbl, TAB_INFO_NROWS ) 
+		Delete Object From Extents Where Rowid = j
+		Update FinalTbl 
+			Set Obj = OrgObj
+			Where Rowid = j
+		Commit Table FinalTbl 
+
+	End If
+	
+	Commit Table FinalTbl 
+	RowCurId = RowCurId + 1 
+	Fetch Next From Extents
+Loop
+Commit Table FinalTbl
+Map From FinalTbl
+Close File #1
+End Sub
+

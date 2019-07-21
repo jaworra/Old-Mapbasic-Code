@@ -1,0 +1,86 @@
+' Polyline change in direction
+' Programmer:	  John Worall
+' Date:           18/07/2013
+' Description:    Reverse direction of a polyline
+' To Add:
+' Requirments : File with a polyline
+'Library
+'*********************************************************************************************
+Include "mapbasic.def"
+Declare Sub Main
+
+Sub Main
+Dim PolyTableRef As String
+Dim ObjectType,ArraySize,i,j,WinID As Integer
+Dim InObject,OutObject As Object
+Dim LineCordsArray(1) As String
+Dim NodeX(1),NodeY(1) As Float
+print chr$(12)
+Close all
+PolyTableRef= FileOpenDlg("C:\Documents and Settings\jaworra\Desktop", "", "TAB", "Select Dataset to QA/QC")
+If PolyTableRef= "" Then
+	Print "operation cancelled"
+	Exit Sub
+End If
+
+Open Table PolyTableRef As PolylineTbl
+Map from PolylineTbl
+WinID = FrontWindow()
+j=1
+Fetch First From PolylineTbl
+Do While Not EOT(PolylineTbl)
+	ObjectType = ObjectInfo(PolylineTbl.obj,OBJ_INFO_TYPE)
+	InObject = PolylineTbl.obj
+	Do Case ObjectType
+		Case OBJ_TYPE_LINE
+		Case OBJ_TYPE_PLINE
+			ArraySize = ObjectInfo(InObject,OBJ_INFO_NPNTS)
+			Print ObjectInfo(InObject,OBJ_INFO_NPNTS)+"  Number of Nodes"
+			print ""
+			If ArraySize > 1 Then
+				Redim LineCordsArray(ArraySize)
+				Redim NodeX(ArraySize)
+				Redim NodeY(ArraySize)
+				For i = 1 to ArraySize 'Store Nodes Coords
+						NodeX(i)=ObjectNodeX(InObject ,1, i)
+						NodeY(i)=ObjectNodeY(InObject ,1, i)
+						Print NodeX(i)+","+NodeY(i)
+						Print i + " Ascending"
+				Next 	
+				'For i = ArraySize to 1 Step -1  'Redraws polyline in opposite direction
+				For i = 1 to ArraySize
+					Print i+ " Descending"
+					'If i = ArraySize Then 'Start Point initialise
+					If i = 1 Then 
+						Create Pline Into Variable OutObject 1 (NodeX(i),NodeY(i))
+					Else
+						Alter object OutObject node add(NodeX(i),NodeY(i))
+					End If
+					Print NodeX(i)+","+NodeY(i)
+				Next 	
+				Insert into WindowInfo(WinID, WIN_INFO_TABLE)(Object) Values (OutObject) 
+				'Insert into PolylineTbl(Object) Values(OutObject) 		
+				Update PolylineTbl Set obj = OutObject Where RowID = j
+				print " j=  "+j 
+			
+				For i = 1 to ArraySize
+					Print ObjectNodeX(OutObject ,1, i)+" ,"+ObjectNodeY(OutObject ,1, i)
+				Next
+				'exit sub			
+			End If		
+		Case OBJ_TYPE_REGION
+			Print "Jacked"
+	End Case
+	Redim LineCordsArray(0)
+	Redim NodeX(0)
+	Redim NodeY(0)
+	Print ""
+	Print ""
+	j=j+1
+	Fetch Next From PolylineTbl
+Loop
+End Sub
+
+
+
+
