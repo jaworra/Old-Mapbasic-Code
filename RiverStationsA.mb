@@ -1,0 +1,55 @@
+'definition File 	Metadata Extraction
+' Project	        
+' Programmer:       John Worrall
+' Last UpDate:      06/11/2012      
+' Version:          AppVersion (see below)
+' Description:      Extracts metadata to report file
+' Future Works:     Create XML OGC compliant metadata file
+'					
+' Function Arguments
+
+Include "mapbasic.def"
+Declare Sub Main
+
+'*****************
+Sub Main
+'*****************
+Print Chr$(12) 'Clear Output
+close all
+Open Table "G:\Geospatial\GIS\JohnW\Request\RichardJ\RiverStations\VW_BOM_RVR_GAUGE_STATIONS.TAB" As GaugeStations
+Open Table "L:\spatialData\transportation\roads\stateControlled\scRoads\sc_roads.TAB" As ScRoads
+
+Create table rivStatRd Using GaugeStations File "G:\Geospatial\GIS\JohnW\Request\RichardJ\RiverStations\StartPoints.tab"
+Create Map For rivStatRd Using GaugeStations
+Set Coordsys Table rivStatRd 
+
+
+
+Dim statOnRd,currObj As Object
+Dim i,test as Integer
+i=0
+Fetch First From GaugeStations
+Do While Not EOT(GaugeStations)
+	i=i+1
+	Print GaugeStations.col1
+	currObj = GaugeStations.obj
+	test=GaugeStations.col1
+	Nearest From Variable currObj To ScRoads Into rivStatRd 'Data IDENTIFIER = ScRoad.IDENTIFIER
+	Update rivStatRd Set IDENTIFIER = test  Where Rowid = i
+	'Insert Into rivStatRd (obj) Values (statOnRd) 
+	
+	If i >6 Then
+		Exit sub
+	End If
+	
+
+	Fetch Next From GaugeStations
+Loop
+
+'LoooUpdate rivStatRd Set IDENTIFIER = test,  Where Rowid = ip here update line with end point
+
+'Obj = CreatePoint(x, ObjectGeography( OBJ_GEO_LINEENDX ) 
+
+Map From GaugeStations,ScRoads
+
+End Sub

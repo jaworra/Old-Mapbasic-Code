@@ -1,0 +1,168 @@
+' Programmer: John Worrall
+' Date:             26/10/2012
+' Description:     Referesh Server 
+'		    	   Creates a button to refresh the linked tables of users choice	 
+' Bugs/Updates Required: 
+' > 
+
+
+'**********INCLUDES***************
+Include "mapbasic.def"
+Include "menu.def"
+Include "ICONS.DEF"
+
+
+'***********SUBS*****************
+Declare Sub Main
+Declare Sub TestLinkedTables
+Declare Sub ServerInfo(byVal ConnectionString As Integer)
+Declare Sub LinkedTableChoice
+Declare Sub OkHandler
+
+
+'***********GLOBAL VARIABLES******
+Global ServersConnected As Integer
+Global LinkedTableName()As String
+Global SelTableArray() As Integer
+Global y As Integer 'Array counter for linked tables
+
+
+'*****************
+Sub Main
+'*****************
+Print Chr$(12)
+
+	Create ButtonPad "Refresh Server" As 
+		PushButton 
+			Calling TestLinkedTables 
+			Icon MI_ICON_MB_7
+			HelpMsg "Refresh the server"
+Alter ButtonPad "Refresh Server" Fixed ToolbarPosition (1,2) 
+		
+End Sub
+
+
+'*****************
+Sub TestLinkedTables
+'*****************
+
+Dim ConnectionRDBMS As Integer
+Dim ConnectionName As String
+Dim TableInt As Integer
+Dim x As Integer 'For counter for open tables
+y=0
+
+'Test Connection 
+OnError Goto PrintExit
+If (Server_ConnectInfo(1,SRV_CONNECT_INFO_DB_NAME) <> "") Then
+'Call ServerInfo(1)' Extract only the first server Connection information
+
+'Run established connection 1 and refresh all tables
+If  NumTables() =0 Then
+	Print "No Open tables"
+	Exit Sub
+End If
+
+	For x=1 to NumTables()
+			'command to find referesh
+			If TableInfo(x, TAB_INFO_TYPE) = 5 Then
+				y=y+1
+				Redim LinkedTableName(y)
+				LinkedTableName(y)= TableInfo(x, TAB_INFO_NAME)
+			End If
+	Next 	
+	
+Call LinkedTableChoice
+
+Exit Sub
+End If
+
+'No Connection
+PrintExit:
+Print "No Connection, Please establish ODBC"
+End Sub
+
+
+'*****************
+Sub LinkedTableChoice
+'*****************
+
+Dim z as Integer
+Dim RefresthTbl as SmallInt
+
+	Dialog
+		Title "Choose Linked Table to Refresh:" 
+		
+	Control StaticText
+		Title "Linked Tables:"
+		Position 5,10
+	
+	Control MultiListBox
+		Title From  Variable LinkedTableName 
+		Value 1 
+		Id 23
+		Position 10,25
+		Width 140
+
+	Control OkButton
+		Position 60,140
+		Calling OkHandler
+		
+	Control CancelButton
+		Position 110,140
+		
+Dim l as Integer
+
+'Choosen table is refreshed
+If CommandInfo(CMD_INFO_DLG_OK)  Then
+	
+	For l=1 to Ubound(SelTableArray) 
+			If LinkedTableName(SelTableArray(l)) <> "" Then				
+				Server Refresh TableInfo(LinkedTableName(SelTableArray(l)),TAB_INFO_NAME)
+			End If
+
+	Next
+End If
+End Sub
+
+
+'*****************
+Sub OkHandler
+'*****************
+
+Dim i As Integer
+Dim ISel As Integer
+
+i = 0
+ISel = ReadControlValue(23)
+	
+If ISel = 0 Then
+	Note "Please Select a Table to Refresh"
+End If 
+
+Do Until ISel = 0 
+	i = i + 1
+	Redim SelTableArray(i)
+	SelTableArray(i)= ISel 
+	ISel = ReadControlValue(23)
+Loop
+End Sub
+
+'*****************
+Sub ServerInfo(byVal ConnectionString As Integer)
+'*****************
+
+'Output Database Information Connection
+	'Print Chr$(12) ' Clear 
+	Print "Server Information"
+	Print "Driver Name   -         "+Server_ConnectInfo(ConnectionString,SRV_CONNECT_INFO_DRIVER_NAME)
+	Print "Database Name -         "+Server_ConnectInfo(ConnectionString,SRV_CONNECT_INFO_DB_NAME)
+	Print "User Name     -         "+Server_ConnectInfo(ConnectionString,SRV_CONNECT_INFO_SQL_USER_ID)
+	Print "DS Name       -         "+Server_ConnectInfo(ConnectionString,SRV_CONNECT_INFO_DS_NAME)
+	
+End Sub
+
+
+
+
+

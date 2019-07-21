@@ -1,0 +1,392 @@
+' Programmer: John Worall
+' Date:            06/06/2013
+' Revised Date:    05/01/2017
+' Description:     Reads input total cumulative road closures
+'				   Process to a sigle line with count and total closure time
+' Bugs/Updates Required: 
+
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+
+Declare Function COGOG(ByVal LineObj As Object, ByVal X As Float, ByVal Y As Float, ByVal X2 As Float, ByVal Y2 As Float) As Object
+define PI 3.1415926535898
+define HALF_PI 1.5707963267949
+define TWO_PI 6.2831853071796
+define EPSILON 1E-13
+define OFFSET_TANG 260
+
+Type RoadRecord
+	roadName As String 
+	timeClosure As float
+	startCh As float
+	endCh As float
+End Type
+
+Declare Sub Main
+
+Sub Main
+Dim fileName As String
+Dim i,j as integer
+Dim rowNum as integer
+
+Print Chr$(12)
+Close all
+
+'Open Table "D:\Richard\Results\PointsA.TAB" As runThrough
+'Open Table "D:\Richard\Results\UniquePointsSortedFinalMapped.TAB" As updateTbl
+
+Open Table "D:\Richard\ReVisited\ToProcess\data_attributes.TAB" As runThrough
+Open Table "D:\Richard\ReVisited\ToProcess\mapped_attributes.TAB" As updateTbl
+
+'Set and store array data for points
+rowNum = TableInfo(runThrough,TAB_INFO_NROWS)
+Dim roadArray(1) As RoadRecord
+i = 1
+ReDim roadArray(rowNum)
+Fetch First from runThrough
+Do While Not EOT(runThrough)
+	
+	roadArray(i).roadName = runThrough.col3
+	roadArray(i).timeClosure = runThrough.col4
+	roadArray(i).startCh = runThrough.col5
+	roadArray(i).endCh = runThrough.col6
+	i = i + 1
+	Fetch Next from runThrough
+Loop
+
+
+'Run through the unique points table and update count
+Dim RoadID as String 
+Dim RoadStCh,RoadEdCh,timeTotal As Float
+Dim k,countK as Integer
+Dim foundK as Logical 
+
+k=1
+Fetch First from updateTbl
+Do While Not EOT(updateTbl)
+	
+	foundK = FALSE
+	RoadID = updateTbl.col3
+    RoadStCh = updateTbl.col5
+    RoadEdCh = updateTbl.col6
+    countK = 0
+    timeTotal = 0
+
+    For j=1 to i-1
+    	
+    	'print RoadID & " A " & roadArray(j).roadName & " B "
+    	
+    	If RoadID = roadArray(j).roadName Then
+    		
+'			If points st ch > segemnt st ch and points st < segements end ch
+'			print RoadID & " C " & roadArray(j).roadName & " D "
+'			print roadArray(j).startCh & " E " & RoadStCh
+'			print roadArray(j).startCh & " F " & RoadEdCh
+
+'			Run through is the array
+'			update tbl is the RoadEnd
+
+			If RoadStCh >= roadArray(j).startCh and RoadEdCh <= roadArray(j).endCh Then
+				Print roadArray(j).startCh &  roadArray(j).endCh & " ---- " &  RoadEdCh & "  " & RoadStCh
+				foundK = TRUE
+				countK = countK + 1
+				timeTotal = timeTotal + roadArray(j).timeClosure
+			End If
+    	End If
+	Next
+	
+	If foundK = TRUE Then
+		Update updateTbl Set Count = countK Where Rowid = k
+		Update updateTbl Set Closure_time = timeTotal Where Rowid = k
+		Commit Table updateTbl
+	End If
+
+	k=k+1
+	Print "Record nummber: " & k & " out of " & TableInfo(updateTbl,TAB_INFO_NROWS)
+	Fetch Next from updateTbl
+Loop
+
+Commit Table updateTbl
+
+End Sub
+
+
+'New part here to extract 
+'Select * from runThrough where Road_Section_ID = "99D" order by Tdist_Start into Selection
+
+''Create a copy
+'If fileExists("D:\Richard\Points.TAB")then
+'	Open Table "D:\Richard\Points.TAB" as DeleteMe
+'	Drop Table DeleteMe
+'End If	
+'If fileExists("D:\Richard\PointsRoad.TAB")then
+'	Open Table "D:\Richard\PointsRoad.TAB" as DeleteMe
+'	Drop Table DeleteMe
+'End If
+'
+'
+''Save to local drive and open
+'Print "Cache datasets locally...."
+'Select * from runThrough into MandatorySelection 	
+'Commit Table MandatorySelection As "D:\Richard\Points.TAB"
+'Open Table "D:\Richard\Points.TAB" as PointsTable
+'Delete from PointsTable
+'
+'Commit Table PointsTable
+'Pack Table PointsTable Graphic Data
+'Close Table MandatorySelection 
+'
+'
+''Edit structure of Point table here
+'Alter Table PointsTable
+'(Drop Region_Name,LGA_Name,Locality_Name,Road_Name,Superset_Cway,ClosureDuration, DistanceClosed,LegalClosureCondition,ClosureDuration_Days,Start_Date,End_Date
+'Add PrimaryKey Integer,ForeignKey Integer, ActualCh Float
+'Order PrimaryKey,ForeignKey,Road_Section_ID,ActualCh,Tdist_Start,Tdist_End)
+'Commit Table PointsTable
+'
+'rowNum = TableInfo(runThrough,TAB_INFO_NROWS)
+'Dim roadArray(1) As RoadRecord
+'Dim PolyObj,StartPt,EndPt As Object 
+'Dim endNode,obj_type As Integer
+'
+'Dim TstPt1X,TstPt2X,TedPt1Y,TedPt2Y As Float
+'Dim LineObj,LineObj2,LineObj3,CogoLine1, CogoLine2 As Object			
+'
+'ReDim roadArray(rowNum) 
+'
+''Set CoordSys Earth Projection 1, 116  ' Sets GDA lat long
+'Set CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000  'MGA Zone 56
+'
+'i = 1
+'j = 1
+'Fetch First from runThrough
+'Do While Not EOT(runThrough)
+'	
+'	'Store array
+'	roadArray(i).roadName = runThrough.col5
+'	roadArray(i).startCh = runThrough.col8
+'	roadArray(i).endCh = runThrough.col9
+'	roadArray(i).primaryKey = i
+'	
+'	
+'	'Create start and end points
+'	PolyObj=runThrough.obj
+'	obj_type = ObjectInfo(PolyObj, OBJ_INFO_TYPE)
+'	Do Case obj_type 
+'		Case OBJ_TYPE_LINE 'Line object
+'			StartPt=CreatePoint(ObjectGeography(PolyObj,OBJ_GEO_LINEBEGX),ObjectGeography(PolyObj,OBJ_GEO_LINEBEGY))
+'			EndPt=CreatePoint(ObjectGeography(PolyObj,OBJ_GEO_LINEENDX),ObjectGeography(PolyObj,OBJ_GEO_LINEENDY))	
+'			Print "ENTERS"
+'			
+'		Case OBJ_TYPE_PLINE 'Pline object
+'			endNode = ObjectInfo(PolyObj,20) 'End node
+'			StartPt=CreatePoint(ObjectNodeX(PolyObj, 1, 1),ObjectNodeY(PolyObj, 1, 1))
+'			EndPt=CreatePoint(ObjectNodeX(PolyObj, 1, endNode),ObjectNodeY(PolyObj, 1,endNode))
+'			'Print "a"
+'			
+'			'For start tangent 
+'			TstPt1X=ObjectNodeX(PolyObj, 1, 2)
+'			TstPt2X=ObjectNodeX(PolyObj, 1, 1)
+'			TedPt1Y=ObjectNodeY(PolyObj, 1, 2)
+'			TedPt2Y=ObjectNodeY(PolyObj, 1, 1)
+'			LineObj=CreateLine(TstPt2X,TedPt2Y,TstPt1X,TedPt1Y)
+'			LineObj2=RotateAtPoint(LineObj,90,CreatePoint(TstPt2X,TedPt2Y))
+'			LineObj3=RotateAtPoint(LineObj,270,CreatePoint(TstPt2X,TedPt2Y))
+'			LineObj=CreateLine(ObjectGeography(LineObj2,OBJ_GEO_LINEENDX),ObjectGeography(LineObj2,OBJ_GEO_LINEENDY),ObjectGeography(LineObj3,OBJ_GEO_LINEENDX),ObjectGeography(LineObj3,OBJ_GEO_LINEENDY))
+'			
+'			If TstPt1X > 0 or TstPt2X > 0 or TedPt1Y > 0 or TedPt2Y > 0 Then 
+'				Print TstPt1X 
+'				Print TstPt2X 
+'				Print TedPt1Y
+'				Print TedPt2Y 
+'				CogoLine1=COGOG(CreateLine(TstPt2X,TedPt2Y,TstPt1X,TedPt1Y),TstPt2X,TedPt2Y,TstPt1X,TedPt1Y)	
+'			End If
+'			'For end tangent 
+'			TstPt1X=ObjectNodeX(PolyObj, 1, endNode-1)
+'			TstPt2X=ObjectNodeX(PolyObj, 1, endNode)
+'			TedPt1Y=ObjectNodeY(PolyObj, 1, endNode-1)
+'			TedPt2Y=ObjectNodeY(PolyObj, 1, endNode)
+'			LineObj=CreateLine(TstPt2X,TedPt2Y,TstPt1X,TedPt1Y)
+'			LineObj2=RotateAtPoint(LineObj,90,CreatePoint(TstPt2X,TedPt2Y))
+'			LineObj3=RotateAtPoint(LineObj,270,CreatePoint(TstPt2X,TedPt2Y))
+'			LineObj=CreateLine(ObjectGeography(LineObj2,OBJ_GEO_LINEENDX),ObjectGeography(LineObj2,OBJ_GEO_LINEENDY),ObjectGeography(LineObj3,OBJ_GEO_LINEENDX),ObjectGeography(LineObj3,OBJ_GEO_LINEENDY))
+'
+'			'Create tangent line heres
+'			CogoLine2=COGOG(CreateLine(TstPt2X,TedPt2Y,TstPt1X,TedPt1Y),TstPt2X,TedPt2Y,TstPt1X,TedPt1Y)
+'			'This is tangelet line object 
+'			
+'			'maybecombine objects
+'			
+'	End Case 
+'	roadArray(i).startObj = StartPt
+'	roadArray(i).endObj = EndPt	
+'	
+'	'Insert point into table with attributes	-QA QC ing
+'	Insert Into PointsTable(PrimaryKey,ForeignKey,Road_Section_ID,Tdist_Start,Tdist_end,ActualCh,obj) values (j,i,roadArray(i).roadName,roadArray(i).startCh,roadArray(i).endCh,roadArray(i).startCh,StartPt) 
+'	Insert Into PointsTable(PrimaryKey,ForeignKey,Road_Section_ID,Tdist_Start,Tdist_end,ActualCh,obj) values (j+1,i,roadArray(i).roadName,roadArray(i).startCh,roadArray(i).endCh,roadArray(i).endCh,EndPt) 
+'	
+'		
+'	'Tangets instead of points	
+'	'Insert Into PointsTable(Road_Section_ID,Superset_Cway,Tdist_Start,Tdist_end,obj) values (roadArray(i).roadName,i,roadArray(i).startCh,roadArray(i).endCh,CogoLine2)
+'	'Insert Into PointsTable(Road_Section_ID,Superset_Cway,Tdist_Start,Tdist_end,obj) values (roadArray(i).roadName,i,roadArray(i).startCh,roadArray(i).endCh,CogoLine1)	
+'	'Insert Into PointsTable(Road_Section_ID,Superset_Cway,Tdist_Start,Tdist_end,obj) values (runThrough.col5,i,runThrough.col8,runThrough.col9,EndPt)
+'
+'	
+'	i = i + 1
+'	j = j + 2
+'	Fetch Next from runThrough
+'Loop
+'Commit Table PointsTable
+'
+'
+'
+''Segement now....
+'exit sub
+'
+'
+''Save array of roadnames
+'Select * from PointsTable group by Road_Section_ID into RoadID
+'Commit Table MandatorySelection As "D:\Richard\PointsRoad.TAB"
+'Open Table "D:\Richard\Points.TAB" as PointsTableRoad
+'
+''Run again through table - though this time edit objects based on stored array variable
+'Fetch First from PointsTableRoad
+'Do While Not EOT(PointsTableRoad)
+'	'PointsTableRoad.5=runThrough.obj
+'
+'
+'	Fetch Next from PointsTableRoad
+'Loop
+'
+'
+''------------------Processing as arrays here * no spatial analysis
+'' Did not proceed - left for future works
+'
+'
+'Dim recordedList(1) as Integer
+'Dim finalArray(1) As RoadRecord
+'ReDim finalArray(rowNum) 
+'ReDim recordedList(rowNum)
+'
+'Dim checkID as Integer
+'
+'Dim found As Logical
+'Dim curSize As Integer
+'Dim vi as Integer
+'
+'vi=0
+'found=0
+''Here loop through record 
+'Dim k,l  as Integer
+'Dim startLine as Float
+'Print "================================================="
+'For j = 1 to i-1
+'	print roadArray(j).roadName  & " :   " & roadArray(j).startCh & " -  " & roadArray(j).endCh
+'	Print "enters....."
+'	startLine = roadArray(j).startCh
+'	
+'	'Select line every other line with a start ch >
+'	
+'	
+'
+'	found=0
+'	For k = 1 to i-1  ' Dont include the already process record
+'		
+'		If k <> j Then 'Make sure its not the same line processing
+'					
+'				'print roadArray(k).roadName  & " :   " & roadArray(k).startCh & " -  " & roadArray(k).endCh
+'				If roadArray(j).roadName = roadArray(k).roadName Then 'Same Road
+'
+'					If  roadArray(j).startCh >= roadArray(k).startCh and  roadArray(j).startCh <= roadArray(k).endCh Then 'Overlap  - correct check 
+'		
+'						'checkID = 
+'						'if it hasnt found 			
+'			
+'						If found=0 Then ' Runs when it first enters
+'							
+'							If roadArray(j).startCh > roadArray(k).startCh Then
+'								'First section
+'								'roadArray(k).startCh '7  - start
+'								'roadArray(k).endCh '8  - End 
+'							ElseIf roadArray(j).startCh > roadArray(k).startCh Then
+'							End If 
+'						End If
+'		
+'						'Second section
+'						'roadArray(j).startCh '8
+'						'roadArray(j).startCh '9			
+'						vi = vi +1
+'		
+'					End If
+'				End If
+'				found=1
+'		End If
+'		
+'	Next
+'	If found = 1 Then ' Record found
+'		
+'	End If
+'	Exit sub
+'
+'Next
+'
+'End Sub
+'
+'
+'
+'Function COGOG(ByVal LineObj As Object, ByVal X As Float, ByVal Y As Float,ByVal X2 As Float, ByVal Y2 As Float) As Object
+'
+'Set CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000
+'
+'Dim deltaX,deltaY,degAngle,dist,Angle As Float
+'Dim East1,East2,CH1,North1,North2,CH2,DCH2 As Float
+'Dim FEast,FNorth As Float
+'
+'deltaY=ObjectGeography(LineObj,OBJ_GEO_LINEENDY)-ObjectGeography(LineObj,OBJ_GEO_LINEBEGY) 'Y2-Y1
+'deltaX=ObjectGeography(LineObj,OBJ_GEO_LINEENDX)-ObjectGeography(LineObj,OBJ_GEO_LINEBEGX) 'X2-X1
+'dist=ObjectLen(LineObj,"m")
+'
+'Print "Delta X " & deltaX
+'Print "Delta Y " & deltaY
+'
+'If deltaX = 0 Then
+'	X2 = X2 + 0.01
+'ElseIF deltaY = 0 Then
+'    Y2 = Y2 + 0.01
+'End If
+'
+'
+''''''''''''''''''''''''''''''     Determine Quadrant     ''''''''''''''''''''''''''''''
+'Dim TangX,TangY,TangX2,TangY2 As Float
+'
+'
+'If deltaY >= 0 And deltaX >= 0 Then  'NE 
+'	Angle=Atn((Y2-Y)/(X2-X))*RAD_2_DEG
+'	Print "NE: " & Angle
+'
+'ElseIf deltaY >= 0 And deltaX < 0 Then 'NW 
+'	Angle=Atn(abs(X2-X)/(Y2-Y))*RAD_2_DEG+90
+'	Print "NW: " & Angle 
+'
+'ElseIf deltaY < 0 And deltaX >= 0 Then  'SE 
+'	Angle=360-(Atn(abs(Y2-Y)/(X2-X))*RAD_2_DEG)
+'	Print "SE: " & Angle
+'	
+'ElseIf deltaY < 0 And deltaX < 0 Then  'SW 
+'	Angle=Atn(abs(Y2-Y)/abs(X2-X))*RAD_2_DEG+180
+'	Print "SW: " & Angle 
+'
+'End If
+'
+''Create Tangent Lines
+'	TangX=X+(sin(Angle*DEG_2_RAD)*OFFSET_TANG)
+'	TangY=Y-(cos(Angle*DEG_2_RAD)*OFFSET_TANG)
+'
+'	TangX2=X-(sin(Angle*DEG_2_RAD)*OFFSET_TANG)
+'	TangY2=Y+(cos(Angle*DEG_2_RAD)*OFFSET_TANG)
+'
+'COGOG=CreateLine(TangX,TangY,TangX2,TangY2)
+'End Function

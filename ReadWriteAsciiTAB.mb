@@ -1,0 +1,193 @@
+'================================================================================================================='
+'																												  '
+'Programmer: 	John Worrall																					  '
+'Last Update: 	20/11/2013																						  '
+'Version: 			1.0																							  '
+'																												  '
+'Description: 																									  '
+'			Reads txt ascii Grid file into xyz from a directory													  '
+'																												  '
+'TODO:																											  '
+'																												  '
+'================================================================================================================='
+
+Include "MAPBASIC.DEF"
+Include "ICONS.DEF"
+
+Declare Sub Main
+Declare Sub GetFileNames (byval sPath As String, byval sFilespec As String, sList() As String)
+
+Type STARTUPINFO
+      cb As Integer
+      lpReserved As String
+      lpDesktop As String
+      lpTitle As String
+      dwX As Integer
+      dwY As Integer
+      dwXSize As Integer
+      dwYSize As Integer
+      dwXCountChars As Integer
+      dwYCountChars As Integer
+      dwFillAttribute As Integer
+      dwFlags As Integer
+      wShowWindow As Smallint
+      cbReserved2 As Smallint
+      lpReserved2 As Integer
+      hStdInput As Integer
+      hStdOutput As Integer
+      hStdError As Integer
+End Type
+
+Type PROCESS_INFORMATION
+    hProcess As Integer
+    hThread As Integer
+    dwProcessID As Integer
+    dwThreadID As Integer
+End Type
+Define NORMAL_PRIORITY_CLASS  &H20
+Define INFINITE -1
+Define MAX_PATH 260
+
+Type FILETIME
+	dwLowDateTime As Integer
+	dwHighDateTime As Integer
+End Type
+Type WIN32_FIND_DATA
+	dwFileAttributes As Integer
+	ftCreationTime As FILETIME
+	ftLastAccessTime As FILETIME
+	ftLastWriteTime As FILETIME
+	nFileSizeHigh As Integer
+	nFileSizeLow As Integer
+	dwReserved0 As Integer
+	dwReserved1 As Integer
+	cFileName As String * MAX_PATH
+	cAlternate As String * 14
+End Type
+Define INVALID_HANDLE_VALUE -1
+Declare Function FindFirstFile Lib "kernel32"
+	Alias "FindFirstFileA" (ByVal lpFileName As String, lpfindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindNextFile Lib "kernel32"
+	Alias "FindNextFileA" (ByVal hFindFile As Integer, lpFindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindClose Lib "kernel32"
+	Alias "FindClose" (ByVal hFindFile As Integer) As Integer
+Declare Function CloseHandle Lib "kernel32" (hObject As Integer) As smallint
+Declare Function WaitForSingleObject Lib "kernel32" (ByVal hHandle As Integer, 
+													 ByVal dwMilliseconds As Integer) 
+													 As Integer										 
+Declare Function CreateProcessA Lib "kernel32" (ByVal lpApplicationName As Integer, 
+												ByVal lpCommandLine As String, 
+												ByVal lpProcessAttributes As Integer, 
+												ByVal lpThreadAttributes As Integer, 
+												ByVal bInheritHandles As Integer, 
+												ByVal dwCreationFlags As Integer, 
+												ByVal lpEnvironment As Integer, 
+												ByVal lpCurrentDirectory As Integer, 
+												lpStartupInfo As STARTUPINFO, 
+												lpProcessInformation As PROCESS_INFORMATION) 
+												As Integer	
+												
+Sub GetFileNames (ByVal sPath As String, ByVal sFilespec As String, sList() As String)
+Dim hFindFile, nStatus As Integer
+Dim f As WIN32_FIND_DATA
+Dim i As Integer
+
+hFindFile = FindFirstFile (sPath + sFilespec, f)
+If hFindFile <> INVALID_HANDLE_VALUE Then
+	Do
+		If (f.dwFileAttributes \ 16) Mod 2 = 0 Then
+			i = i + 1
+			ReDim sList(i)
+			sList(i) = f.cFilename
+		End If
+		nStatus = FindNextFile (hFindFile, f)
+	Loop While nStatus = 1
+End If
+nStatus = FindClose (hFindFile)
+End Sub												
+
+Sub Main
+Dim sAsciiFiles() As String
+Dim sAsciiDir,sAsciiPath,sAsciiFile,outputXYZFile As String
+Dim i,j,startX,StartY,NumRows,NumCol,CellSize as Integer
+Dim currZ,currX,currY,NoData as Float
+Dim ln As String
+print chr$(12)
+Close all
+sAsciiDir=FileOpenDlg("S:\laserScanning\ALS\2013\NorthQLD Region LiDAR & Ortho\McKinlayRiver", "", "asc", "Open any ESRI Asci File from directory to convert")
+If sAsciiDir= "" Then
+	Print "operation cancelled"
+End If
+sAsciiPath=PathToDirectory$(sAsciiDir)
+Call GetFileNames(sAsciiPath,"*.asc",sAsciiFiles)
+
+	For i=1 to UBound(sAsciiFiles)
+		Print "Converting Ascii Grid file "+sAsciiFiles(i)+" to "+mid$(sAsciiFiles(i),1,Len(sAsciiFiles(i))-4)+".xyz    ......."
+		'outputXYZFile=sAsciiPath+Left$(sAsciiFiles(i),InStr(1,sAsciiFiles(i),"."))+"xyz"
+		'Hardcoded Output Path below
+		outputXYZFile="S:\laserScanning\ALS\2013\NorthQLD Region LiDAR & Ortho\McKinlayRiver\XYZ\"+Left$(sAsciiFiles(i),InStr(1,sAsciiFiles(i),"."))+"xyz"
+		j=0
+		Open File sAsciiFiles(i) For Input As #1
+		Open File outputXYZFile For Output As #2
+		
+			Do While Not EOF(1)
+				j=j+1
+				'Set File Attributes
+				Line Input #1,ln
+				
+				If j=1 Then
+					NumCol=Mid$(ln,16,10)
+					Print "Number of Cols: "+NumCol
+				End If				
+				If j=2 Then
+					NumRows=Mid$(ln,16,10)
+					Print "Number of Rows: "+NumRows
+				End If
+				If j=3 Then
+					startX=Mid$(ln,16,11)
+					Print "Start X: "+startX
+				End If
+				If j=4 Then
+					startY=Mid$(ln,16,11) 
+					Print "Start Y: "+startY
+				End If
+				If j=5 Then
+					CellSize=Mid$(ln,16,11) 
+					Print "Cell Size: "+CellSize
+					currY=startY+NumRows-(CellSize/2) 'Take bottom left y from number or row
+					currX=startX+(CellSize/2) 'Reset X after each line
+				End If
+				If j=6 Then
+					NoData=Mid$(ln,15,11) 
+					Print "No Data: "+NoData
+				End If
+				
+				'Read Ascii Contents
+				If j>6 Then
+					While InStr(1,ln," ") <> 0 or len(ln) > 2 
+						currZ=Mid$(ln,1,InStr(1,ln," "))
+						If currZ <> NoData Then
+							print #2, currX+","+currY+","+currZ
+						End If
+						ln=Right$(ln,len(ln)-InStr(1,ln," ")) 
+						'print "---" +ln
+						currX=currX+1
+					Wend
+					currY=currY-1 'add Y value, when next row is read
+					currX=startX+(CellSize/2)
+				End If
+				
+				'Debug -- take this out
+'				If j=11 Then
+'					Exit Sub
+'				End If
+			Loop
+		Print "Number of Lines: "+j
+		Close File #1
+		Close File #2	
+	Next
+	Print chr$(10)+"Succesfully Completed!"
+
+End Sub
+
+

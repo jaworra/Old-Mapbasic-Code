@@ -1,0 +1,465 @@
+' Programmer:       John Worrall
+' Date:             30/06/2010
+' Description:      Custermised users entry of coordinates
+' Updates Required: Update pointers in if function, see below 
+' "G:\gis\Fitzroy_Data\DCDB\r_FTR.TAB" 
+' "G:\gis\Fitzroy_Data\DCDB\p_FTR.TAB"
+' "G:\gis\Fitzroy_Data\Roads\FTR_Roads_DRCL.TAB" 
+'  To add > Future coding to include as separate file
+'		    > Checks each layer and adds accordingly
+
+
+'***********************************************************************************
+'Libraries --->
+Include "mapbasic.def"
+Include "icons.def"
+'************************************************************************************
+
+Declare Sub Main
+Declare Sub GEO_COORDS
+Declare Sub GEO_COORDS_DMS
+Declare Sub GRID_COORDS
+Declare Sub INS_GEO_POINT
+Declare Sub CREATE_POINT_TXT(ByVal MyWindow as Integer, ByVal COORDSX as Float,ByVal COORDSY as Float,ByVal COORDSXTXT as String,ByVal COORDSYTXT as String)
+Declare Sub VALID_MAPPER(ByVal MyWindow as Integer)
+
+'---------------------------MAIN--------------------------------------
+Sub Main
+
+Create ButtonPad "Custom1" As PushButton
+Icon MI_ICON_COMMUNICATION_4   
+Calling GEO_COORDS
+HelpMsg "Displays the query dialog\nGPS LAT/LONG Decimal Degrees Query"
+'Drop Table sites           -----     Deletes table
+
+Alter ButtonPad "Custom1" Fixed
+Add Separator
+Add PushButton
+Icon MI_ICONS_MAPS_1
+Calling GEO_COORDS_DMS
+HelpMsg "Displays the query dialog\nGPS LAT/LONG Decimal Minutes Seconds Query"
+'Drop Table sites           -----     Deletes table
+
+Alter ButtonPad "Custom1" Fixed
+Add Separator
+Add PushButton
+Icon MI_ICONS_MAPS_9
+Calling GRID_COORDS
+HelpMsg "Displays the query dialog\nEnter EAST/NORTH: Query"
+Alter ButtonPad "Custom1" Fixed ToolbarPosition (2,0)
+
+Alter ButtonPad "Custom1" Fixed
+Add Separator
+ToolButton Calling INS_GEO_POINT
+Icon MI_ICON_ARROW   DrawMode DM_CUSTOM_POINT
+HelpMsg "Displays the query dialog\n Extract Location"
+Alter ButtonPad "Custom1" Fixed ToolbarPosition (2,0)
+
+
+End Sub
+
+'---------------------------PROCEDURE Create TEXT & POINT--------------------------------------
+
+Sub CREATE_POINT_TXT(ByVal MyWindow as Integer, ByVal COORDSX as Float,ByVal COORDSY as Float,ByVal COORDSXTXT as String,ByVal COORDSYTXT as String)
+
+Set Map 
+Window MyWindow
+Center (COORDSX,COORDSY)
+Zoom 4500 Units "m"
+
+'Sets points/txt styles
+Set Style Font MakeFont("Times New Roman", 258, 10, RED,WHITE) ' See page 300 -(frontname, style,size,foregroud color,backgroud color )
+Set Style Symbol MakeSymbol( 34, RED, 6) ' See page 681 symbol , 502 for colour
+
+'TXT Generation
+Insert Into
+WindowInfo( MyWindow, WIN_INFO_TABLE) (Object)
+Values (CreateText(MyWindow,COORDSX,COORDSY,COORDSXTXT +" "+COORDSX+"  "+COORDSYTXT+" "+COORDSY, 0,5,15))
+
+'Point Generation
+Insert Into
+WindowInfo( MyWindow, WIN_INFO_TABLE) (Object)
+Values (CreatePoint(COORDSX, COORDSY))
+
+
+End Sub
+
+'---------------------------PROCEDURE VALIDATES MAPPER--------------------------------------
+Sub VALID_MAPPER(ByVal MyWindow as Integer)
+
+If MyWindow  = 0
+Then
+Open Table "G:\gis\Fitzroy_Data\DCDB\r_FTR.TAB" Interactive
+Map From r_FTR
+Open Table "G:\gis\Fitzroy_Data\DCDB\p_FTR.TAB" Interactive
+Add Map Auto Layer p_FTR
+Open Table "G:\gis\Fitzroy_Data\Roads\FTR_Roads_DRCL.TAB" Interactive
+Add Map Auto Layer FTR_Roads_DRCL
+'MyWindow = FrontWindow( ) 
+End If
+
+End Sub
+'---------------------------DD GEOGRAPHIC COORDS PROCEDURE--------------------------------------
+Sub GEO_COORDS
+
+'Initialise varibles-->
+Dim lat As Float
+Dim long As Float
+Dim point As String
+Dim win_id As Integer
+Dim TXT_LAT As String
+Dim TXT_LONG As String
+Dim win_id2 As Integer
+
+
+'GUI----->
+
+Dialog
+Title "LONG/LAT IN DECIMAL DEGREES "
+
+Control StaticText
+Title "Longitude:" 
+Control EditText
+Into long
+
+Control StaticText
+Title "Latitude:"  
+Control EditText
+Into lat
+
+Control StaticText
+Title "For Example: 150.000000                                      :- 24.000000 "
+Position 5,22
+
+Control OKButton
+Control CancelButton
+Control StaticText
+Title "Geographic Coordinates in WGS84/GDA94"
+Position 5,40
+
+'Functions----->
+If CommandInfo(CMD_INFO_DLG_OK) Then
+
+'Sets varibles
+win_id = FrontWindow( )
+TXT_LAT = "LAT:"
+TXT_LONG = "LONG:"
+
+'Calls Mapper Validation
+Call VALID_MAPPER(win_id )
+win_id = FrontWindow( )
+
+'Sets projection----->
+Set Map XY Units "degree" CoordSys Earth Projection 1, 104
+Set CoordSys Earth Projection 1, 104
+
+'Calls create point
+Call CREATE_POINT_TXT(win_id,long,lat,TXT_LONG,TXT_LAT)
+
+Else
+End If
+End Sub
+'---------------------------DMS   GEOGRAPHIC COORDS PROCEDURE--------------------------------------
+Sub GEO_COORDS_DMS
+
+'Initialise varibles-->
+Dim lat_DMS As Float
+Dim lat_DD As Float
+Dim lat_D As Integer
+Dim lat_M As Integer
+Dim lat_S As Float
+
+Dim long_DMS As Float
+Dim long_DD As Float
+Dim long_D As Integer
+Dim long_M As Integer
+Dim long_S As Float
+
+Dim win_DMS As Integer
+
+'GUI----->
+
+Dialog
+Title "LONG/LAT IN DEGREES MINUTE SECONDS"
+
+Control StaticText
+Title "Longitude:"
+Position 5,15
+Width 35
+Control EditText 
+Width 20
+Into long_D
+
+Control StaticText
+Title "°"
+Control EditText 
+Width 15
+Into long_M
+
+Control StaticText
+Title "'"
+Control EditText 
+Width 30
+Into long_S
+
+Control StaticText
+Title "''"
+Width 100
+
+
+Control StaticText
+Title "Latitude:"
+Position 5,30
+Width 35
+Control EditText 
+Width 20
+Into lat_D
+
+Control StaticText
+Title "°"
+Control EditText 
+Width 15
+Into lat_M
+
+Control StaticText
+Title "'"
+Control EditText 
+Width 30
+Into lat_S
+
+Control StaticText
+Title "''"
+
+Control OKButton
+Control CancelButton
+Control StaticText
+Title "Geographic Coordinates in WGS84/GDA94"
+Position 5,50
+
+
+win_DMS = FrontWindow( )  
+
+'Functions---->
+If CommandInfo(CMD_INFO_DLG_OK) Then
+
+long_DD = (Abs(long_D)) + (long_M/60)+(long_S/3600)
+lat_DD = (Abs(lat_D)) + (lat_M/60)+(lat_S/3600)
+
+If lat_D <0 Then
+lat_DD = lat_DD * -1
+End If
+
+'Note long_DD 
+'Note lat_DD
+'Note Str$(Int(Abs(long_DMS)))+Chr$(176)+" "+Str$(Int(60*(Abs(long_DMS)-Int(Abs(long_DMS)))))+"' "+Format$(60*(60*Abs(long_DMS)-Int(60*Abs(long_DMS))), "0.00")+""" "+Mid$("WE", 1+Int(long_DMS>0), 1) 
+
+'---------------------------CREAT POINT & TEXT--------------------------------------
+'Sets varibles
+Dim TXT_LAT_DMS As String
+Dim TXT_LONG_DMS As String
+
+Dim TXTPOS_LAT_DMS As String
+Dim TXTPOS_LONG_DMS As String
+
+TXT_LAT_DMS = "LAT:"
+TXT_LONG_DMS = "LONG:"
+
+TXTPOS_LAT_DMS = long_D+"°"+long_M+"'"+long_S+"''"
+TXTPOS_LONG_DMS = lat_D+"°"+lat_M+"'"+lat_S+"''"
+
+win_DMS = FrontWindow( )
+
+'Calls Mapper Validation
+Call VALID_MAPPER(win_DMS)
+win_DMS = FrontWindow( )
+
+'Sets projection----->
+Set Map XY Units "degree" CoordSys Earth Projection 1, 104
+Set CoordSys Earth Projection 1, 104
+
+'Creating point custom function----> Requires point location to be in decimal degrees! conversion is required.
+
+Set Map 
+Window win_DMS
+Center (long_DD,lat_DD)
+Zoom 4500 Units "m"
+
+'Sets points/txt styles
+Set Style Font MakeFont("Times New Roman", 258, 10, RED,WHITE) ' See page 300 -(frontname, style,size,foregroud color,backgroud color )
+Set Style Symbol MakeSymbol( 34, RED, 6) ' See page 681 symbol , 502 for colour
+
+'TXT Generation
+Insert Into
+WindowInfo( win_DMS, WIN_INFO_TABLE) (Object)
+Values (CreateText(win_DMS,long_DD,lat_DD,TXT_LONG_DMS +" "+TXTPOS_LONG_DMS+"  "+TXT_LAT_DMS+" "+TXTPOS_LAT_DMS, 0,5,15))
+
+'Point Generation
+Insert Into
+WindowInfo( win_DMS, WIN_INFO_TABLE) (Object)
+Values (CreatePoint(long_DD, lat_DD))
+
+Set Map XY Units "degree" CoordSys Earth Projection 1, 104
+Set CoordSys Earth Projection 1, 104
+
+
+Else
+End If
+End Sub
+'---------------------------GRID COORDS FUNCTION--------------------------------------
+
+Sub GRID_COORDS
+
+'Initialise varibles-->
+Dim East As Float
+Dim North As Float
+Dim Zone As SmallInt ' 56 = 56
+Dim win_id2 As Integer
+Dim TXT_E As String
+Dim TXT_N As String
+
+'GUI----->
+Dialog
+Title "Easting/Northing"
+
+Control StaticText
+Title "Easting:"   
+Control EditText
+Into East
+
+Control StaticText
+Title "Northing"  
+Control EditText
+Into North
+
+Control StaticText
+Title "Zone"  
+Control PopupMenu
+Title "56;55;54" 
+Into Zone
+
+Control StaticText
+Title "For Example: 300,000.000                                 :7,000,000.000"
+Position 5,22
+
+Control OKButton
+Control CancelButton
+Control StaticText
+Title "Coordinates MGA (GDA94)"
+Position 5,40
+
+'Functions---->
+If CommandInfo(CMD_INFO_DLG_OK) Then
+
+'Sets varibles
+win_id2 = FrontWindow( )  
+TXT_E = "E:"
+TXT_N = "N:"
+
+'Calls Mapper Validation
+Call VALID_MAPPER(win_id2)
+win_id2 = FrontWindow( )
+
+'Sets Projection/datums
+
+If Zone = 1 Then
+Set Map XY Units "m" CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000
+Set CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000  
+
+End If
+
+If Zone = 2 Then
+Set Map XY Units "m" CoordSys Earth Projection 8, 116, "m", 147, 0, 0.9996, 500000, 10000000 
+Set CoordSys Earth Projection 8, 116, "m", 147, 0, 0.9996, 500000, 10000000 
+
+End If
+
+If Zone = 3 Then
+Set Map XY Units "m" CoordSys Earth Projection 8, 116, "m", 141, 0, 0.9996, 500000, 10000000 
+Set CoordSys Earth Projection 8, 116, "m", 141, 0, 0.9996, 500000, 10000000 
+
+End If
+
+'Calls create point function
+Call CREATE_POINT_TXT(win_id2,East,North,TXT_E,TXT_N)
+
+End If
+End Sub
+
+'---------------------------INS_GEO_POINT--------------------------------------
+Sub INS_GEO_POINT
+
+'Sets projection----->
+Set Map XY Units "degree" Display Decimal On CoordSys Earth Projection 1, 104
+Set CoordSys Earth Projection 1, 104
+
+
+Dim win_id3 As Integer
+Dim LAT_PRNT,LONG_PRNT As Float
+Dim LAT_PRNT_TXT,LONG_PRNT_TXT As String
+Dim LAT_PRNT_TXT_NUMS,LONG_PRNT_TXT_NUMS As String
+
+'Sets varibles
+win_id3 = FrontWindow( )  
+LAT_PRNT_TXT = "LAT:"
+LONG_PRNT_TXT = "LONG:"
+LAT_PRNT  = CommandInfo(CMD_INFO_Y) ' ERROR here brings only six figure results
+LONG_PRNT = CommandInfo(CMD_INFO_X)
+
+' Float values did not output values to six decimal places, not sure why so used the following
+' Had to then run its own create txt & point loop  > TEMPORARY SOLUTION
+
+LAT_PRNT_TXT_NUMS = FormatNumber$(LAT_PRNT)
+LONG_PRNT_TXT_NUMS = FormatNumber$(LONG_PRNT)
+
+Call VALID_MAPPER(win_id3)
+win_id3 = FrontWindow( )
+
+Set Map XY Units "degree" Display Decimal On CoordSys Earth Projection 1, 104
+Set CoordSys Earth Projection 1, 104
+
+'Calls create point function ---> standard sub wont work...
+'Call CREATE_POINT_TXT(win_id3,LONG_PRNT,LAT_PRNT,LONG_PRNT_TXT,LAT_PRNT_TXT)
+
+'---------------------------CREAT POINT & TEXT--------------------------------------
+
+Set Map 
+Window win_id3
+Center (LONG_PRNT,LAT_PRNT)
+Zoom 2000 Units "m"
+
+
+'Sets points/txt styles
+Set Style Font MakeFont("Times New Roman", 258, 10, RED,WHITE) ' See page 300 -(frontname, style,size,foregroud color,backgroud color )
+Set Style Symbol MakeSymbol( 34, RED, 6) ' See page 681 symbol , 502 for colour
+
+'TXT Generation
+Insert Into
+WindowInfo( win_id3, WIN_INFO_TABLE) (Object)
+Values (CreateText(win_id3,LONG_PRNT,LAT_PRNT,LONG_PRNT_TXT +" "+LONG_PRNT_TXT_NUMS, 0,5,10)) ' use if for two lines
+'Values (CreateText(win_id3,LONG_PRNT,LAT_PRNT,LONG_PRNT_TXT +" "+LONG_PRNT_TXT_NUMS+" "+LAT_PRNT_TXT+" "+LAT_PRNT_TXT_NUMS, 0,5,15)) ' single line display
+
+'TXT Generation
+Insert Into
+WindowInfo( win_id3, WIN_INFO_TABLE) (Object)
+Values (CreateText(win_id3,LONG_PRNT,LAT_PRNT,LAT_PRNT_TXT+" "+LAT_PRNT_TXT_NUMS, 0,8,10))
+
+'Point Generation
+Insert Into
+WindowInfo( win_id3, WIN_INFO_TABLE) (Object)
+Values ( CreatePoint(LONG_PRNT, LAT_PRNT))
+
+End Sub
+
+
+
+
+
+
+
+
+
+
+
+
+
+

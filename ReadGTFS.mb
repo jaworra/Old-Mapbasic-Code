@@ -1,0 +1,88 @@
+' Turn restrictions algorithm
+' Programmer:	  John Worall
+' Date:           10/03/201
+' Description:    Uses DTMR dataset drn to develop turn restrictions dataset for routing
+' To Add:
+' Requirments : Input Tab file
+' Possible Future Works : 
+'						  					 
+'Library
+'*********************************************************************************************
+Include "mapbasic.def"
+Declare Sub Main
+	
+Sub Main
+
+print chr$(12)
+Close all
+
+'Goto PassSaveTemp
+
+Dim GTFSTableRef,TmpResLoc,TmpResLoc2 As String
+TmpResLoc="C:\TEMP\GTFS_TEMP1.Tab"
+TmpResLoc2="C:\TEMP\GTFS_TEMP2.Tab"
+
+'Check file exists and delete
+If fileExists(TmpResLoc)then
+	Open Table TmpResLoc as DeleteMe
+	Drop Table DeleteMe
+End If
+If fileExists(TmpResLoc2)then
+	Open Table TmpResLoc2 as DeleteMe
+	Drop Table DeleteMe
+End If
+
+'Locate GTFS Table
+GTFSTableRef=FileOpenDlg("C:\Documents and Settings\jaworra\My Documents\Downloads\SEQ", "", "TAB", "Select Dataset to GTFS")
+If GTFSTableRef="" Then
+	Print "operation cancelled"
+	Exit Sub
+End If
+
+'PassSaveTemp:
+If fileExists(TmpResLoc)then 
+	Open Table TmpResLoc as DeleteMe
+	Drop Table TmpResLoc
+End If
+
+'Save GTFS temp table
+Open Table GTFSTableRef As GTFSTable
+Commit Table GTFSTable as TmpResLoc
+Open Table TmpResLoc As GTFS_Temp
+
+	
+'Create a empty table to store intesections points
+Create Table "GTFS_ROUTE"
+(Shape_ID Char(8))
+File "C:\TEMP\Bus_Routes.tab"
+Create Map For GTFS_ROUTE using GTFS_Temp  
+
+Dim i,colm4 as Integer
+Dim colm1 as String
+Dim rline as Object
+Fetch First From GTFS_Temp
+Do While Not EOT(GTFS_Temp)
+	colm1=GTFS_Temp.col1
+	Select * From GTFS_Temp where colm1=GTFS_Temp.col1 into NewTable
+	If TableInfo(NewTable,TAB_INFO_NROWS) <> 0 Then
+		Create Pline into Variable rline 0
+		For i=1 to TableInfo(NewTable,TAB_INFO_NROWS)
+			Fetch rec i from NewTable
+			Alter Object rline Node Add(NewTable.col3,NewTable.col2)
+		Next
+		Insert into GTFS_ROUTE (Shape_ID,obj) Values (colm1,rline)
+	End If
+	
+Delete from NewTable
+Close Table NewTable
+Commit table GTFS_ROUTE
+Pack table GTFS_ROUTE Graphic Data
+Fetch First From GTFS_Temp
+Loop
+End Sub
+
+
+
+
+
+

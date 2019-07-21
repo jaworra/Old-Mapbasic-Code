@@ -1,0 +1,124 @@
+' Converts shapefile to tabfiles with Mapinfo
+' Programmer:	  John Worall
+' Date:           08/07/2013
+' Description:    Creates a Tab file from directory of shapefiles.
+' To Add:
+' Requirments : Directory containing Shapefiles
+'				Projection Set to: CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000 
+'Library
+'*********************************************************************************************
+Include "mapbasic.def"
+Include "icons.def"
+Include "Menu.def"
+Declare Sub Main
+Declare Sub GetFileNames (byval sPath As String, byval sFilespec As String, sList() As String)
+
+Type STARTUPINFO
+      cb As Integer
+      lpReserved As String
+      lpDesktop As String
+      lpTitle As String
+      dwX As Integer
+      dwY As Integer
+      dwXSize As Integer
+      dwYSize As Integer
+      dwXCountChars As Integer
+      dwYCountChars As Integer
+      dwFillAttribute As Integer
+      dwFlags As Integer
+      wShowWindow As Smallint
+      cbReserved2 As Smallint
+      lpReserved2 As Integer
+      hStdInput As Integer
+      hStdOutput As Integer
+      hStdError As Integer
+End Type
+
+Type PROCESS_INFORMATION
+    hProcess As Integer
+    hThread As Integer
+    dwProcessID As Integer
+    dwThreadID As Integer
+End Type
+Define NORMAL_PRIORITY_CLASS  &H20
+Define INFINITE -1
+Define MAX_PATH 260
+
+Type FILETIME
+	dwLowDateTime As Integer
+	dwHighDateTime As Integer
+End Type
+Type WIN32_FIND_DATA
+	dwFileAttributes As Integer
+	ftCreationTime As FILETIME
+	ftLastAccessTime As FILETIME
+	ftLastWriteTime As FILETIME
+	nFileSizeHigh As Integer
+	nFileSizeLow As Integer
+	dwReserved0 As Integer
+	dwReserved1 As Integer
+	cFileName As String * MAX_PATH
+	cAlternate As String * 14
+End Type
+Define INVALID_HANDLE_VALUE -1
+Declare Function FindFirstFile Lib "kernel32"
+	Alias "FindFirstFileA" (ByVal lpFileName As String, lpfindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindNextFile Lib "kernel32"
+	Alias "FindNextFileA" (ByVal hFindFile As Integer, lpFindFileData As WIN32_FIND_DATA) As Integer
+Declare Function FindClose Lib "kernel32"
+	Alias "FindClose" (ByVal hFindFile As Integer) As Integer
+Declare Function CloseHandle Lib "kernel32" (hObject As Integer) As smallint
+Declare Function WaitForSingleObject Lib "kernel32" (ByVal hHandle As Integer, 
+													 ByVal dwMilliseconds As Integer) 
+													 As Integer										 
+Declare Function CreateProcessA Lib "kernel32" (ByVal lpApplicationName As Integer, 
+												ByVal lpCommandLine As String, 
+												ByVal lpProcessAttributes As Integer, 
+												ByVal lpThreadAttributes As Integer, 
+												ByVal bInheritHandles As Integer, 
+												ByVal dwCreationFlags As Integer, 
+												ByVal lpEnvironment As Integer, 
+												ByVal lpCurrentDirectory As Integer, 
+												lpStartupInfo As STARTUPINFO, 
+												lpProcessInformation As PROCESS_INFORMATION) 
+												As Integer	
+Sub Main
+Dim sShapeFiles() As String
+Dim sShapeDir,sShapePath,sShapeFile As String
+Dim i as Integer
+print chr$(12)
+Close all
+sShapeDir = FileOpenDlg("N:\Scenic_Rim\Contours", "", "shp", "Open any shapefile from directory to convert")
+If sShapeDir= "" Then
+	Print "operation cancelled"
+End If
+sShapePath=PathToDirectory$(sShapeDir)
+Call GetFileNames(sShapePath,"*.shp",sShapeFiles)
+	For i=1 to UBound(sShapeFiles)
+		Print "Converting Shapefile "+sShapeFiles(i)+" to "+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4)+".tab    ......."
+		Register Table sShapePath+"\"+sShapeFiles(i) TYPE SHAPEFILE Charset "WindowsLatin1" CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000 PersistentCache Off linestyle Pen (1,2,0)  Into "C:\TEMP\"+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4)
+		Open Table "C:\TEMP\"+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4) As tempTbl
+		Commit Table tempTbl As sShapePath+mid$(sShapeFiles(i),1,Len(sShapeFiles(i))-4)+".tab"
+		Close Table tempTbl
+	Next
+	Print chr$(10)+"Succesfully Completed!"
+End Sub
+
+Sub GetFileNames (ByVal sPath As String, ByVal sFilespec As String, sList() As String)
+Dim hFindFile, nStatus As Integer
+Dim f As WIN32_FIND_DATA
+Dim i As Integer
+
+hFindFile = FindFirstFile (sPath + sFilespec, f)
+If hFindFile <> INVALID_HANDLE_VALUE Then
+	Do
+		If (f.dwFileAttributes \ 16) Mod 2 = 0 Then
+			i = i + 1
+			ReDim sList(i)
+			sList(i) = f.cFilename
+		End If
+		nStatus = FindNextFile (hFindFile, f)
+	Loop While nStatus = 1
+End If
+nStatus = FindClose (hFindFile)
+End Sub

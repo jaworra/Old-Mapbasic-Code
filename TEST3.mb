@@ -1,0 +1,372 @@
+' Program to combine EV TAB dataset by Property ID
+' Date:             20/12/2013
+' Description:    iterates rows and thematic and generates pollines
+' To Add:
+' Requirments : 
+' Updated in v3 - GUI added process.
+
+Include "mapbasic.def"
+Declare Sub Main
+Declare Sub SetUpTbl(ByVal loadCsv as String, ByVal SaveMiTbl As String, ByVal MainTbl as String )
+
+Sub Main
+print chr$(12)
+'Close all 'Run this 
+Dim bufferDistance,StartTimer  As Integer
+Dim orgEVPath,LogFile As String
+Dim StartTime As Time
+Dim StartDate As Date
+Dim StartDT As datetime
+'Initialise Time
+StartTimer = Timer()
+StartTime = Time (24)
+StartDate = CurDate()
+StartDT = MakeDateTime(StartDate,StartTime)
+
+'orgEVPath=FileOpenDlg("C:\TEMP\Temp", "", "TAB", "Select Emergency Vehicle DATASET")
+
+Dim loadCsv,SaveMiTbl,MainTbl,CopyTbl,TempLoc As String
+loadCsv= "E:\AVL\DataForTMR_May2015\TEST2.csv"
+'loadCsv= "E:\AVL\DataForTMR_May2015\QasBrisbaneData.csv"
+MainTbl="EV_Movement"
+CopyTbl="TEST_copyEVTable"
+TempLoc="C:\TEMP\"
+SaveMiTbl=TempLoc & MainTbl & ".TAB"
+
+'Check file exists and delete
+If fileExists(TempLoc & CopyTbl & ".TAB")then
+	Open Table TempLoc & CopyTbl & ".TAB" as DeleteMe
+	Drop Table DeleteMe
+End If
+
+If fileExists(TempLoc & MainTbl & ".TAB")then
+	Open Table TempLoc & MainTbl & ".TAB" as DeleteMe
+	Drop Table DeleteMe
+End If
+
+LogFile=TempLoc & "QAQC.log"
+If fileExists(LogFile)then
+	Kill LogFile
+End If
+
+
+'call SetUpTbl(loadCsv,SaveMiTbl,MainTbl)
+
+'Save to local drive and open
+Print "Cache datasets locally...."
+Commit Table MainTbl As TempLoc & CopyTbl & ".TAB"
+Open Table TempLoc & CopyTbl & ".TAB"as EVCopy
+
+
+
+'Goto SecondPart
+
+'OnError Goto UpdateTblError
+'Open File LogFile
+'For Output As #1
+'Print #1, "-----  Processing QAQC EV Commenced  ----- "
+'Print #1, "## "+FormatDate$(GetDate(StartDate))+" "+FormatTime$(GetTime(StartTime), "hh:mm:ss.fff tt")
+'Print #1, "## DEBUGGING" 
+'Print #1, ""
+
+'Combine columns (take out line not requied i.e _L and _R)-> Future works users selects column
+Print "Indetifying records with the same location...."
+Dim ColumnSelect As Float'String
+Dim Plan,CmbLot As String
+Dim lot,i,j,rowCount As Integer
+
+Dim MasterID,RowCountId,RowCountIdCord As Integer
+Dim CoordMatchX,CoordMatchY As String
+Dim RadiusTheme As Integer
+Dim PointObj,BufferObj As Object 
+Dim Att_Day As smallInt
+
+'DEBUGGING SECTION
+'Goto CreateLineSec
+Set Table EVCopy FastEdit On Undo Off
+j=0
+rowCount=Tableinfo(EVCopy,TAB_INFO_NROWS)
+
+'New table to place results
+Create Table ThematicGPS_MatchCORD using EVCopy File TempLoc & "TEST_ThematicGPS_MatchCORD.TAB"
+Create Map For ThematicGPS_MatchCORD
+	
+
+Create Table ThematicGPS_MatchCORDID using EVCopy File TempLoc & "TEST_ThematicGPS_MatchCORDID.TAB"
+Create Map For ThematicGPS_MatchCORDID
+Map From ThematicGPS_MatchCORD,ThematicGPS_MatchCORDID
+
+Set Map CoordSys Earth Projection 8, 116, "m", 153, 0, 0.9996, 500000, 10000000
+Set Map XY Units "m"
+
+CreateLineSec:
+Print "Creating Routes...."
+'SecondPart:
+Create Table EV_Movement_Routes using EVCopy File TempLoc & "TEST_EV_Movement_Routes.TAB" 
+Create Map For EV_Movement_Routes
+Alter Table EV_Movement_Routes (Drop ID,Vehicle_ID,Date_Time,x,y)
+Dim PolylineObj As Object
+Dim Loopi,Loopj As Integer
+dim fX, fY as Float
+Dim MasterID2,VehicleID,NoVehicle_ID,Att_Incident,NoIncidents As Integer   '**** TAKE THIS OUT
+Dim VehicleIDAr(10),Incidents(10) As Integer
+Dim DateAtt As String
+
+Dim IncidentID,k As Integer
+j=0
+k=j
+Fetch First From EVCopy
+Do While Not EOT(EVCopy)
+	j=j+1
+	k=k+1
+	Print j & " number of incidents processed...."
+	IncidentID=EVCopy.Incident
+	
+	Run Command "Select * from "+EVCopy+" where Incident = "+IncidentID+" order by Date_time into TESTCreatePolyline"
+
+'	If Tableinfo(TESTCreatePolyline,TAB_INFO_NROWS)>1 Then
+'		Create Pline into Variable PolylineObj 0
+'				For Loopi=1 to TableInfo(TESTCreatePolyline, TAB_INFO_NROWS)
+'					'print TableInfo(TESTCreatePolyline, TAB_INFO_NROWS) +"   number of records"	
+'					Fetch rec Loopi from TESTCreatePolyline
+'					fX=TESTCreatePolyline.X
+'					fY=TESTCreatePolyline.Y
+'					Alter Object PolylineObj Node Add (fX, fY)	
+'				Next			
+''	Insert into EV_Movement_Routes (Incident,obj) Values (IncidentID,PolylineObj)
+'	End If
+'	Delete from CreatePolyline
+'	Close Table CreatePolyline
+'	Commit Table EVCopy
+'	Pack Table EVCopy Graphic Data
+	
+	If k = 10  Then
+		k=0
+	    Commit Table EV_Movement_Routes
+	End If
+	
+Fetch Next from EVCopy
+Loop
+Commit Table EV_Movement_Routes
+End sub	
+	
+	
+	
+	
+	
+'	print "####  j counter:" & j
+'	'New Code
+'	
+'	Run Command "Select * from "+EVCopy+" group by Incident into GroupByIncident"
+'	NoIncidents=Tableinfo(GroupByIncident,TAB_INFO_NROWS)
+'	ReDim Incidents(NoIncidents)
+'	For i=1 to NoIncidents
+'		Run Command "Select * from GroupByIncident where rowID = "+i+" into TempSel"
+'		Incidents(i)= TempSel.Col6
+'		Print "Incident number: "+Incidents(i)
+'	Next	
+'	
+'	
+'	For i=1 to NoIncidents
+'		Run Command "Select * from "+EVCopy+" where Incident = "+Incidents(i)+" order by Date_time into CreatePolyline"
+'		Create Pline into Variable PolylineObj 0
+'				For Loopi=1 to TableInfo(CreatePolyline, TAB_INFO_NROWS)
+'					'print TableInfo(CreatePolyline, TAB_INFO_NROWS) +"   number of records"	
+'					Fetch rec Loopi from CreatePolyline
+'					fX=CreatePolyline.X
+'					fY=CreatePolyline.Y
+'					Alter Object PolylineObj Node Add (fX, fY)	
+'				Next			
+'		Insert into EV_Movement_Routes (Incident,obj) Values (Incidents(i),PolylineObj)
+'	Next 
+'	
+
+'
+'
+'
+'	
+'	MasterID2=EV_Movement.Col1
+'	Att_Incident=EV_Movement.Col6
+'
+' 	DateAtt=EV_Movement.col3
+' 	Att_Day=Day(EV_Movement.col3)
+' 	print Att_Day
+'	
+'	'Two loops in here - > 1) loop by vehicle ID    2) loop by record to input polyline
+'		Run Command "Select * from "+MainTbl+" where Incident = "+Att_Incident+" group by Vehicle_ID into GroupByVeh"
+'	NoVehicle_ID=Tableinfo(GroupByVeh,TAB_INFO_NROWS)
+'	print "number or rows: "+NoVehicle_ID
+'	
+'	'Set array - used to separate 
+'	ReDim VehicleIDAr(NoVehicle_ID)
+'	For i=1 to NoVehicle_ID 
+'		Run Command "Select * from GroupByVeh where rowID = "+i+" into TEST4"
+'		VehicleIDAr(i)=TEST4.Col2
+'		Print "VehicleArray: "+VehicleIDAr(i)
+'	Next
+'
+'	For i=1 to NoVehicle_ID
+'		Run Command "Select * from "+MainTbl+" where Incident = "+Att_Incident+" and Vehicle_ID = "+VehicleIDAr(i)+" group by Date_Time into SameDay"'noselect" 'Select all conicident records
+'		If Tableinfo(SameDay,TAB_INFO_NROWS)>1 Then	'Multiple Days
+'			
+'			'For loop in here
+'			'Print "Over two days"
+'			For Loopj=1 to Tableinfo(SameDay,TAB_INFO_NROWS)
+'				'Select the first record 
+'				Run Command "Select * from "+MainTbl+" where Incident = "+Att_Incident+" and Vehicle_ID = "+VehicleIDAr(i)+" order by Date_Time into AllDayePolyline"'noselect" 'Select all conicident records
+'				Fetch First from AllDayePolyline
+'				DateAtt=Left$(AllDayePolyline.Date_Time,10)
+'				Print "Date Attribute:" & DateAtt
+'				
+'				
+'				Run Command "Select * from "+MainTbl+" where Incident = "+Att_Incident+" and Vehicle_ID = "+VehicleIDAr(i)+" and Left$(Date_Time,10) = "+chr$(34)+DateAtt+chr$(34)+" order by Date_Time into CreatePolyline"'noselect" 'Select all conicident records
+'			
+'				Create Pline into Variable PolylineObj 0
+'				Exit sub
+'				print "num rows conicident: " & TableInfo(CreatePolyline, TAB_INFO_NROWS)
+'				If TableInfo(CreatePolyline, TAB_INFO_NROWS) >0 Then
+'					For Loopi=1 to TableInfo(CreatePolyline, TAB_INFO_NROWS)
+'						print "i couter: " + Loopi
+'						'print TableInfo(CreatePolyline, TAB_INFO_NROWS) +"   number of records"
+'						Fetch rec Loopi from CreatePolyline
+'						fX=CreatePolyline.X
+'						fY=CreatePolyline.Y
+'						'print CreatePolyline.Time+"  time"
+'						Alter Object PolylineObj Node Add (fX, fY)	
+'					Next	
+'					'Insert into EV_Movement (MASTER_ID,Vehicle_ID,Date_,obj) Values (MasterID2,VehicleIDAr(i),DateAtt,PolylineObj)
+'					 Insert into EV_Movement_Routes Values (obj) Values (PolylineObj) 
+'				End	If
+'				Exit sub
+'				
+'				Delete from CreatePolyline
+'				Close Table CreatePolyline
+'				Commit Table MainTbl
+'				Pack Table MainTbl  Graphic Data							
+'				'Do I create a new records here or a multi polylines
+'			Next
+'			
+'			'Exit Sub
+'		
+'		Else	'One Day   
+'			Run Command "Select * from "+MainTbl+" where Incident = "+Att_Incident+" and Vehicle_ID = "+VehicleIDAr(i)+" order by Date_Time into CreatePolyline"'noselect" 'Select all conicident records
+'			DateAtt=CreatePolyline.Date_Time
+'			Create Pline into Variable PolylineObj 0
+'						
+'			For Loopi=1 to TableInfo(CreatePolyline, TAB_INFO_NROWS)
+'				'print TableInfo(CreatePolyline, TAB_INFO_NROWS) +"   number of records"	
+'				Fetch rec Loopi from CreatePolyline
+'				fX=CreatePolyline.X
+'				fY=CreatePolyline.Y
+'				'print CreatePolyline.Time+"  time"
+'				Alter Object PolylineObj Node Add (fX, fY)	
+'			Next
+'			
+'		'Insert into EV_Movement (MASTER_ID,Vehicle_ID,Date_,obj) Values (MasterID2,VehicleIDAr(i),DateAtt,PolylineObj)
+'		Insert into EV_Movement_Routes Values (MasterID2,VehicleIDAr(i),DateAtt,0,0,Att_Incident,PolylineObj)
+'		
+'		Delete from CreatePolyline
+'		Close Table CreatePolyline
+'		Commit Table MainTbl
+'		Pack Table MainTbl  Graphic Data			
+'		End If
+'	Next 
+'
+'	If j=50 Then
+'		Exit sub
+'	End If
+'
+'Fetch First from MainTbl
+'Loop
+'Drop Table MainTbl
+'Commit Table EV_Movement 
+
+'End Sub
+
+Sub SetUpTbl(ByVal loadCsv as String, ByVal SaveMiTbl As String, ByVal MainTbl As String )
+
+
+'Build from scratch
+Create Table MainTbl
+	(ID Integer, 
+	Vehicle_ID Integer,
+	Date_Time DateTime,
+	x float,
+	y float,
+	Incident Integer
+	)
+	File SaveMiTbl
+	Type NATIVE 
+
+Dim Att_ID, Att_VehId, Att_Inc As Integer
+Dim Att_x, Att_y As float
+Dim Att_DateTimeStr As String
+Dim Att_Date As Date
+Dim Att_DateTime As DateTime
+Dim Att_Time As Time
+Dim Textline as String
+Dim Att_Year,Att_Month,Att_Day as String
+Dim lineCnt,lineCnt2 As integer
+lineCnt=0
+
+open file loadCsv for input as #1 
+	Line Input #1, textline 
+	lineCnt=lineCnt+1
+	lineCnt2=lineCnt2+1
+	
+           while not EOF(1) 
+           Line Input #1, textline 
+           		If len(textline) <> 0 Then
+					'print textline
+	               	Att_ID = Left$(textline,InStr(1,textline,",")-1 )
+	               	textline = mid$(textline,len(Left$(textline,InStr(1,textline,",")+1)),len(textline)-len(Left$(textline,InStr(1,textline,",")-1)))
+'	               	print Att_ID 
+'	               	print "a"
+'	               	print textline
+	               	Att_VehId = Left$(textline,InStr(1,textline,",")-1 )
+	               	textline = mid$(textline,len(Left$(textline,InStr(1,textline,",")+1)),len(textline)-len(Left$(textline,InStr(1,textline,",")-1)))
+'	               	print Att_VehId
+'	               	print "b"
+'	               	print textline              	
+	               	
+	               	Att_DateTimeStr=  Left$(textline,InStr(1,textline,",")-1 )
+	               	textline = mid$(textline,len(Left$(textline,InStr(1,textline,",")+1)),len(textline)-len(Left$(textline,InStr(1,textline,",")-1)))
+'	               	print Att_DateTimeStr
+'					print "b1"
+	
+	                Att_Year=Left$(Left$(Att_DateTimeStr,InStr(1,Att_DateTimeStr," ")-1 ),InStr(1,Left$(Att_DateTimeStr,InStr(1,Att_DateTimeStr," ")-1 ),"-")-1)
+	                Att_Month=mid$(Att_DateTimeStr,len(Att_Year)+2,2)
+	                Att_Day=mid$(Att_DateTimeStr,len(Att_Year)+len(Att_Month)+3,2)
+					Att_Date=Att_Year & Att_Month & Att_Day
+					Att_Time=Right$(Att_DateTimeStr,12 )
+					Att_DateTime=Att_Date + Att_Time
+'					print Att_DateTime
+	
+	
+	                Att_x = Left$(textline,InStr(1,textline,",")-1 )
+	               	textline = mid$(textline,len(Left$(textline,InStr(1,textline,",")+1)),len(textline)-len(Left$(textline,InStr(1,textline,",")-1)))
+'	               	print Att_x
+'	               	print "c"
+'	               	print textline
+	
+					Att_y = Left$(textline,InStr(1,textline,",")-1 )
+	               	textline = mid$(textline,len(Left$(textline,InStr(1,textline,",")+1)),len(textline)-len(Left$(textline,InStr(1,textline,",")-1)))
+'	               	print Att_y
+'	               	print textline
+'	               	print "d"
+	               	Att_Inc=textline
+	               	textline="" 'Clears string
+		    	
+	               insert into MainTbl
+	              		Values(Att_ID,Att_VehId,Att_DateTime,Att_x,Att_y,Att_Inc)
+	            Else
+	            	Print "finish"
+	      		End If 
+	      		If lineCnt2=1000 Then
+	      			print lineCnt + " row ----  " + (lineCnt2/15057594 * 100) + "% complete"
+	      			lineCnt2=0
+	      			Commit Table MainTbl
+	      		End If
+          wend          
+Commit Table MainTbl
+End Sub

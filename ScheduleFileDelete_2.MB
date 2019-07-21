@@ -1,0 +1,49 @@
+'======================================================================================================================='
+' Programmer:       John Worrall																									'
+' Created:          18/07/2012																										'
+' Last Update:      18/07/2012																										'
+' Version:          1.0																												'	
+' Description:    																													'
+'  - Regular delete of file																											'
+' Bugs - ^^ symbol for bugs		 																									'
+'======================================================================================================================='
+'Library
+'*********************************************************************************************
+Declare SUB Main
+
+
+SUB Main
+
+'Start Timer
+Dim StartTime, ElapsedTime As integer
+StartTime = Timer()
+
+Dim x as Integer
+Dim CurrentTime As time
+
+x = 0
+Do While x = 0
+	
+		ElapsedTime = Timer()-StartTime
+			'If ElapsedTime > 10 Then ' every ten seconds
+			If ElapsedTime > 1800 Then ' every 30 minutes
+
+			StartTime = ElapsedTime+StartTime ' resets timer
+			CurrentTime = CurTime()
+		
+			Print "Unsuccesful.... Retry 30 Min intervals : "+CurrentTime  
+			Run Program "CMD.EXE /c del "+ "\\Shocnc03_shrsedat2pool_server\SHRSEDAT2\GROUPS\mapinfo\DMR_Apps\DMR_Menu.mbx"
+
+					If Not FileExists("\\Shocnc03_shrsedat2pool_server\SHRSEDAT2\GROUPS\mapinfo\DMR_Apps\DMR_Menu.mbx") Then
+
+						Run Program "CMD.EXE /c xcopy "+"\\Shocnc03_shrsedat2pool_server\SHRSEDAT2\GROUPS\Geospatial\GIS\JohnW\Mbx\DMR_Menu.mbx "+ "\\Shocnc03_shrsedat2pool_server\SHRSEDAT2\GROUPS\mapinfo\DMR_Apps\"
+						Print "Succuessful Transfer at: "+CurrentTime
+						Exit Sub
+					End If
+							
+			End If
+
+Loop
+
+END SUB
+

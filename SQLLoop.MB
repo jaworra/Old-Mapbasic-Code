@@ -1,0 +1,100 @@
+'================================================================================================================='																										'
+'Programmer: 		John Worrall																									'
+'Last Update: 	31/07/2012																										'
+'Version: 			1.0																												'
+'																																	'
+'Description: 																													'
+'			SQL Request - Find the neares four polygons on each row with 													'
+'			Assumes that the first column is unique for sql enquire														'
+'TODO:																			        							'
+'																																	'
+'================================================================================================================='
+
+Declare Sub Main
+
+Sub Main
+
+Print chr$(12)
+Close All
+
+'Location of File to convert
+Dim TableLocation As String
+TableLocation = "G:\Geospatial\GIS\JohnW\PT\New Folder"
+
+Open Table FileOpenDlg(TableLocation, "", "*.Tab", "open TAB file") As OriginalFile
+
+'SQL Statement
+'Select * from OriginalFile where UCL_Code < 110000 Into UnderOneThousand
+'Select * from OriginalFile Into UnderOneThousand
+'Select UCL_Code, UCL_Name,Persons_06 from OriginalFile where Persons_06 <1000 into UnderOneThousand
+Select UCL_Code, UCL_Name from OriginalFile where Persons_06 < 1000 into UnderOneThousand
+
+'Save table - Static Table
+Commit Table UnderOneThousand As "CompareTbl"
+Open Table "CompareTbl" As CompareTbl
+Close Table UnderOneThousand
+
+'Create Table for nearest Line and open
+If Not FileExists(TableLocation+"NearestLine.Tab") Then
+Create Table NearestLine 
+(OrgUID Char(10),OrgName Char(30), Distance Char(12),Code Char(10),Name Char(30) )
+File TableLocation+"NearestLine.tab"
+Create Map For NearestLine
+End If
+
+Open Table TableLocation+"NearestLine.tab" As NearestLine ' Future works delete existing rows to clear
+
+'Find the closes 4 object to tableSelection 
+Nearest 5 From Table CompareTbl To OriginalFile Into NearestLine Ignore  Min 0 Units "m" 
+Data OrgUID =CompareTbl.Col1,OrgName = CompareTbl.Col2, Code =OriginalFile.col1 ,Name =OriginalFile.col2 
+
+
+'Update Column Distance with nearestline's length and save
+Dim i as integer
+Dim DistanceKm As String
+Fetch first from NearestLine
+Do While Not EOT (NearestLine)
+
+	Select * from NearestLine Where RowId = i into SelectionA
+	Print ObjectLen(SelectionA.obj,"km")
+	DistanceKm = ObjectLen(SelectionA.obj,"km")
+	Update NearestLine Set Distance = DistanceKm
+	Where RowId = i
+	i =i+1
+	Fetch Next from NearestLine
+Loop
+
+'Pick up the last record - Some reason does not come through.
+	Fetch Last from NearestLine
+	Select * from NearestLine Where RowId = i into SelectionA
+	Print ObjectLen(SelectionA.obj,"km")
+	DistanceKm = ObjectLen(SelectionA.obj,"km")
+	Update NearestLine Set Distance = DistanceKm
+	Where RowId = i
+
+'Create Table for results and open
+If Not FileExists(TableLocation+"NearestPoly.Tab") Then
+Create Table NearestPoly
+(TargetID Char(30),TargetName Char(30),Distance Char(6),Code Char(10),Name Char(30) )
+File TableLocation+"NearestPoly.tab"
+Create Map For NearestPoly 
+End If
+Open Table TableLocation+"NearestPoly.tab" As NearestPoly
+
+'Loop through results of nearest line and added to NearesPoly Table
+Select NearestLine.Col1, NearestLine.Col2, NearestLine.Col3, NearestLine.Col4, NearestLine.Col5 from OriginalFile,NearestLine Where NearestLine.col1 = OriginalFile.col1 into SelectionB
+Insert Into NearestPoly
+
+
+Select * from SelectionB
+Map From NearestLine,OriginalFile
+Browse * from NearestPoly
+
+'Close Temporary Tables
+Close Table SelectionB
+Close Table SelectionA
+Close Table Selection
+
+End Sub
+
+

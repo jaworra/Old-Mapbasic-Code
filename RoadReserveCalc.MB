@@ -1,0 +1,442 @@
+'-------------------------------------------------------------------------------------------------------------------------
+'	Buffer & Shutdown
+'-------------------------------------------------------------------------------------------------------------------------
+Include "mapbasic.def"
+Declare Sub MAIN
+Declare Sub Dialog
+
+Sub Dialog
+End sub
+Sub MAIN
+
+Print Chr$(12) ' Clear message window
+Close All
+Dim StartTime, ElapsedTime As integer
+StartTime = Timer()
+
+
+Open Table "\\metdnw04\data2\spatialData\transportation\roads\stateControlled\scRoads\sc_roads.TAB" As Sc_roads
+Commit table Sc_roads as "C:\TEMP\Sc_roads"
+Close table Sc_roads
+Open table "C:\TEMP\sc_roads.tab" As Sc_roads
+
+'Create Table
+Create Table RegionRoadReserve
+( Region Char(20),AreaWater Float, Area Float)
+	File "C:\TEMP\RoadReserve.tab"
+Create Map For RegionRoadReserve
+Open Table "C:\TEMP\RoadReserve.tab" Interactive
+
+Dim WaterArea,NoWaterArea as Float
+Dim RegionName as String
+Dim CombineObj as Object
+
+'-------------------------------------------------------------------------------------------------------------------------
+
+RegionName ="FTR"
+Open table "\\metdnw04\data2\spatialData\planningCadastre\dcdb\FTR\r_FTR.tab" As ReserveTable
+Commit table ReserveTable as "C:\TEMP\ReserveTable"
+Close table ReserveTable
+Open table "C:\TEMP\ReserveTable.tab" As ReserveTable
+
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj into Selection
+Objects Combine
+WaterArea = Area(Selection.obj, "Hectare")
+Close table ReserveTable
+
+Open table "C:\TEMP\ReserveTable" As ReserveTable
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj And Parcel_type <> "w"  into Selection
+Objects Combine
+CombineObj = Selection.obj
+NoWaterArea = Area(Selection.obj, "Hectare")
+
+Drop table ReserveTable
+
+Print "-----------------"+RegionName+"----------------------"
+Print "Area without water:"+NoWaterArea+" ha"
+Print "Area with water:"+WaterArea+" ha"
+Print "-----------------------------------------------------"
+
+
+Insert Into RegionRoadReserve (Region,AreaWater,Area,Obj)
+	Values(RegionName,WaterArea,NoWaterArea,CombineObj)
+Commit Table RegionRoadReserve 
+
+'-------------------------------------------------------------------------------------------------------------------------
+
+RegionName ="CWR"
+Open table "\\metdnw04\data2\spatialData\planningCadastre\dcdb\CWR\r_CWR.tab" As ReserveTable
+Commit table ReserveTable as "C:\TEMP\ReserveTable"
+Close table ReserveTable
+Open table "C:\TEMP\ReserveTable.tab" As ReserveTable
+
+
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj into Selection
+Objects Combine
+WaterArea = Area(Selection.obj, "Hectare")
+Close table ReserveTable
+
+
+Open table "C:\TEMP\ReserveTable" As ReserveTable
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj And Parcel_type <> "w"  into Selection
+Objects Combine
+CombineObj = Selection.obj
+NoWaterArea = Area(Selection.obj, "Hectare")
+
+Drop table ReserveTable
+
+Print "-----------------"+RegionName+"----------------------"
+Print "Area without water:"+NoWaterArea+" ha"
+Print "Area with water:"+WaterArea+" ha"
+Print "-----------------------------------------------------"
+
+
+Insert Into RegionRoadReserve (Region,AreaWater,Area,Obj)
+	Values(RegionName,WaterArea,NoWaterArea,CombineObj)
+
+Commit Table RegionRoadReserve 
+
+'------------------------------------------------------------------------------------------------------------------------
+
+RegionName ="DDR"
+Open table "\\metdnw04\data2\spatialData\planningCadastre\dcdb\DDR\r_DDR.tab" As ReserveTable
+Commit table ReserveTable as "C:\TEMP\ReserveTable"
+Close table ReserveTable
+Open table "C:\TEMP\ReserveTable.tab" As ReserveTable
+
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj into Selection
+Objects Combine
+WaterArea = Area(Selection.obj, "Hectare")
+Close table ReserveTable
+
+
+Open table "C:\TEMP\ReserveTable" As ReserveTable
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj And Parcel_type <> "w"  into Selection
+Objects Combine
+CombineObj = Selection.obj
+NoWaterArea = Area(Selection.obj, "Hectare")
+
+Drop table ReserveTable
+
+Print "-----------------"+RegionName+"----------------------"
+Print "Area without water:"+NoWaterArea+" ha"
+Print "Area with water:"+WaterArea+" ha"
+Print "---------------------------------------"
+
+
+Insert Into RegionRoadReserve (Region,AreaWater,Area,Obj)
+	Values(RegionName,WaterArea,NoWaterArea,CombineObj)
+
+Commit Table RegionRoadReserve 
+
+
+'------------------------------------------------------------------------------------------------------------------------
+
+RegionName ="FNR"
+Open table "\\metdnw04\data2\spatialData\planningCadastre\dcdb\FNR\r_FNR.tab" As ReserveTable
+Commit table ReserveTable as "C:\TEMP\ReserveTable"
+Close table ReserveTable
+Open table "C:\TEMP\ReserveTable.tab" As ReserveTable
+
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj into Selection
+Objects Combine
+WaterArea = Area(Selection.obj, "Hectare")
+Close table ReserveTable
+
+
+Open table "C:\TEMP\ReserveTable" As ReserveTable
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj And Parcel_type <> "w"  into Selection
+Objects Combine
+CombineObj = Selection.obj
+NoWaterArea = Area(Selection.obj, "Hectare")
+
+Drop table ReserveTable
+
+Print "-----------------"+RegionName+"----------------------"
+Print "Area without water:"+NoWaterArea+" ha"
+Print "Area with water:"+WaterArea+" ha"
+Print "---------------------------------------"
+
+
+Insert Into RegionRoadReserve (Region,AreaWater,Area,Obj)
+	Values(RegionName,WaterArea,NoWaterArea,CombineObj)
+
+Commit Table RegionRoadReserve 
+
+
+'------------------------------------------------------------------------------------------------------------------------
+
+RegionName ="MTR"
+Open table "\\metdnw04\data2\spatialData\planningCadastre\dcdb\MTR\r_MTR.tab" As ReserveTable
+Commit table ReserveTable as "C:\TEMP\ReserveTable"
+Close table ReserveTable
+Open table "C:\TEMP\ReserveTable.tab" As ReserveTable
+
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj into Selection
+Objects Combine
+WaterArea = Area(Selection.obj, "Hectare")
+Close table ReserveTable
+
+
+Open table "C:\TEMP\ReserveTable" As ReserveTable
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj And Parcel_type <> "w"  into Selection
+Objects Combine
+CombineObj = Selection.obj
+NoWaterArea = Area(Selection.obj, "Hectare")
+
+Drop table ReserveTable
+
+Print "-----------------"+RegionName+"----------------------"
+Print "Area without water:"+NoWaterArea+" ha"
+Print "Area with water:"+WaterArea+" ha"
+Print "---------------------------------------"
+
+
+Insert Into RegionRoadReserve (Region,AreaWater,Area,Obj)
+	Values(RegionName,WaterArea,NoWaterArea,CombineObj)
+
+Commit Table RegionRoadReserve 
+
+
+'------------------------------------------------------------------------------------------------------------------------
+
+
+RegionName ="MWR"
+Open table "\\metdnw04\data2\spatialData\planningCadastre\dcdb\MWR\r_MWR.tab" As ReserveTable
+Commit table ReserveTable as "C:\TEMP\ReserveTable"
+Close table ReserveTable
+Open table "C:\TEMP\ReserveTable.tab" As ReserveTable
+
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj into Selection
+Objects Combine
+WaterArea = Area(Selection.obj, "Hectare")
+Close table ReserveTable
+
+
+Open table "C:\TEMP\ReserveTable" As ReserveTable
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj And Parcel_type <> "w"  into Selection
+Objects Combine
+CombineObj = Selection.obj
+NoWaterArea = Area(Selection.obj, "Hectare")
+
+Drop table ReserveTable
+
+Print "-----------------"+RegionName+"----------------------"
+Print "Area without water:"+NoWaterArea+" ha"
+Print "Area with water:"+WaterArea+" ha"
+Print "---------------------------------------"
+
+Insert Into RegionRoadReserve (Region,AreaWater,Area,Obj)
+	Values(RegionName,WaterArea,NoWaterArea,CombineObj)
+
+Commit Table RegionRoadReserve 
+
+'------------------------------------------------------------------------------------------------------------------------
+
+RegionName ="NCR"
+Open table "\\metdnw04\data2\spatialData\planningCadastre\dcdb\NCR\r_NCR.tab" As ReserveTable
+Commit table ReserveTable as "C:\TEMP\ReserveTable"
+Close table ReserveTable
+Open table "C:\TEMP\ReserveTable.tab" As ReserveTable
+
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj into Selection
+Objects Combine
+WaterArea = Area(Selection.obj, "Hectare")
+Close table ReserveTable
+
+
+Open table "C:\TEMP\ReserveTable" As ReserveTable
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj And Parcel_type <> "w"  into Selection
+Objects Combine
+CombineObj = Selection.obj
+NoWaterArea = Area(Selection.obj, "Hectare")
+
+Drop table ReserveTable
+
+Print "-----------------"+RegionName+"----------------------"
+Print "Area without water:"+NoWaterArea+" ha"
+Print "Area with water:"+WaterArea+" ha"
+Print "---------------------------------------"
+
+
+Insert Into RegionRoadReserve (Region,AreaWater,Area,Obj)
+	Values(RegionName,WaterArea,NoWaterArea,CombineObj)
+
+Commit Table RegionRoadReserve 
+
+
+'------------------------------------------------------------------------------------------------------------------------
+
+RegionName ="NTR"
+Open table "\\metdnw04\data2\spatialData\planningCadastre\dcdb\NTR\r_NTR.tab" As ReserveTable
+Commit table ReserveTable as "C:\TEMP\ReserveTable"
+Close table ReserveTable
+Open table "C:\TEMP\ReserveTable.tab" As ReserveTable
+
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj into Selection
+Objects Combine
+WaterArea = Area(Selection.obj, "Hectare")
+Close table ReserveTable
+
+
+Open table "C:\TEMP\ReserveTable" As ReserveTable
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj And Parcel_type <> "w"  into Selection
+Objects Combine
+CombineObj = Selection.obj
+NoWaterArea = Area(Selection.obj, "Hectare")
+
+Drop table ReserveTable
+
+Print "-----------------"+RegionName+"----------------------"
+Print "Area without water:"+NoWaterArea+" ha"
+Print "Area with water:"+WaterArea+" ha"
+Print "---------------------------------------"
+
+
+Insert Into RegionRoadReserve (Region,AreaWater,Area,Obj)
+	Values(RegionName,WaterArea,NoWaterArea,CombineObj)
+
+Commit Table RegionRoadReserve 
+
+'------------------------------------------------------------------------------------------------------------------------
+
+RegionName ="NWR"
+Open table "\\metdnw04\data2\spatialData\planningCadastre\dcdb\NWR\r_NWR.tab" As ReserveTable
+Commit table ReserveTable as "C:\TEMP\ReserveTable"
+Close table ReserveTable
+Open table "C:\TEMP\ReserveTable.tab" As ReserveTable
+
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj into Selection
+Objects Combine
+WaterArea = Area(Selection.obj, "Hectare")
+Close table ReserveTable
+
+
+Open table "C:\TEMP\ReserveTable" As ReserveTable
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj And Parcel_type <> "w"  into Selection
+Objects Combine
+CombineObj = Selection.obj
+NoWaterArea = Area(Selection.obj, "Hectare")
+
+Drop table ReserveTable
+
+Print "-----------------"+RegionName+"----------------------"
+Print "Area without water:"+NoWaterArea+" ha"
+Print "Area with water:"+WaterArea+" ha"
+Print "---------------------------------------"
+
+
+Insert Into RegionRoadReserve (Region,AreaWater,Area,Obj)
+	Values(RegionName,WaterArea,NoWaterArea,CombineObj)
+
+Commit Table RegionRoadReserve 
+
+'------------------------------------------------------------------------------------------------------------------------
+
+RegionName ="SCR"
+Open table "\\metdnw04\data2\spatialData\planningCadastre\dcdb\SCR\r_SCR.tab" As ReserveTable
+Commit table ReserveTable as "C:\TEMP\ReserveTable"
+Close table ReserveTable
+Open table "C:\TEMP\ReserveTable.tab" As ReserveTable
+
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj into Selection
+Objects Combine
+WaterArea = Area(Selection.obj, "Hectare")
+Close table ReserveTable
+
+
+Open table "C:\TEMP\ReserveTable" As ReserveTable
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj And Parcel_type <> "w"  into Selection
+Objects Combine
+CombineObj = Selection.obj
+NoWaterArea = Area(Selection.obj, "Hectare")
+
+Drop table ReserveTable
+
+Print "-----------------"+RegionName+"----------------------"
+Print "Area without water:"+NoWaterArea+" ha"
+Print "Area with water:"+WaterArea+" ha"
+Print "---------------------------------------"
+
+
+Insert Into RegionRoadReserve (Region,AreaWater,Area,Obj)
+	Values(RegionName,WaterArea,NoWaterArea,CombineObj)
+
+Commit Table RegionRoadReserve 
+
+
+'------------------------------------------------------------------------------------------------------------------------
+
+RegionName ="SWR"
+Open table "\\metdnw04\data2\spatialData\planningCadastre\dcdb\SWR\r_SWR.tab" As ReserveTable
+Commit table ReserveTable as "C:\TEMP\ReserveTable"
+Close table ReserveTable
+Open table "C:\TEMP\ReserveTable.tab" As ReserveTable
+
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj into Selection
+Objects Combine
+WaterArea = Area(Selection.obj, "Hectare")
+Close table ReserveTable
+
+
+Open table "C:\TEMP\ReserveTable" As ReserveTable
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj And Parcel_type <> "w"  into Selection
+Objects Combine
+CombineObj = Selection.obj
+NoWaterArea = Area(Selection.obj, "Hectare")
+
+Drop table ReserveTable
+
+Print "-----------------"+RegionName+"----------------------"
+Print "Area without water:"+NoWaterArea+" ha"
+Print "Area with water:"+WaterArea+" ha"
+Print "---------------------------------------"
+
+
+Insert Into RegionRoadReserve (Region,AreaWater,Area,Obj)
+	Values(RegionName,WaterArea,NoWaterArea,CombineObj)
+
+Commit Table RegionRoadReserve 
+
+
+'------------------------------------------------------------------------------------------------------------------------
+
+
+RegionName ="WBR"
+Open table "\\metdnw04\data2\spatialData\planningCadastre\dcdb\WBR\r_WBR.tab" As ReserveTable
+Commit table ReserveTable as "C:\TEMP\ReserveTable"
+Close table ReserveTable
+Open table "C:\TEMP\ReserveTable.tab" As ReserveTable
+
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj into Selection
+Objects Combine
+WaterArea = Area(Selection.obj, "Hectare")
+Close table ReserveTable
+
+
+Open table "C:\TEMP\ReserveTable" As ReserveTable
+Select * from ReserveTable, sc_roads where ReserveTable.obj Intersects sc_roads.obj And Parcel_type <> "w"  into Selection
+Objects Combine
+CombineObj = Selection.obj
+NoWaterArea = Area(Selection.obj, "Hectare")
+
+Drop table ReserveTable
+
+Print "-----------------"+RegionName+"----------------------"
+Print "Area without water:"+NoWaterArea+" ha"
+Print "Area with water:"+WaterArea+" ha"
+Print "---------------------------------------"
+
+
+Insert Into RegionRoadReserve (Region,AreaWater,Area,Obj)
+	Values(RegionName,WaterArea,NoWaterArea,CombineObj)
+
+Commit Table RegionRoadReserve 
+
+
+'------------------------------------------------------------------------------------------------------------------------
+ElapsedTime = Timer()-StartTime
+Print "Succesfully Completed - Time Taken: "+ ElapsedTime
+
+Drop Table sc_roads
+End Sub

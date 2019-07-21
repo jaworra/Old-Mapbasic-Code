@@ -1,0 +1,156 @@
+' Preping QA for emergency Vehcilces
+' Programmer: John Worall
+' Date:             20/12/2013
+' Description:    iterates rows and thematic and generates pollines
+' To Add:
+' Requirments : 
+' Updated in v3 - GUI added process.
+
+Include "mapbasic.def"
+Declare Sub Main
+
+Sub Main
+print chr$(12)
+Close all
+
+Dim bufferDistance,StartTimer  As Integer
+Dim orgQVASPath,LogFile As String
+Dim StartTime As Time
+Dim StartDate As Date
+Dim StartDT As datetime
+'Initialise Time
+StartTimer = Timer()
+StartTime = Time (24)
+StartDate = CurDate()
+StartDT = MakeDateTime(StartDate,StartTime)
+
+orgQVASPath=FileOpenDlg("\\Shocnc03_shrsedat2pool_server\SHRSEDAT2\GROUPS\Geospatial\GIS\JohnW\Request\RichardJ\qvas\QVAS_TAB_CombinedPropID", "", "TAB", "Select QVAS DATASET")
+LogFile="C:\TEMP\QAQC.log"
+
+If orgQVASPath = "" Then
+	Print "operation cancelled"
+	Exit Sub
+End If
+
+'Check file exists and delete
+If fileExists("C:\TEMP\copyQVASTable.TAB")then
+	Open Table "C:\TEMP\copyQVASTable.TAB" as DeleteMe
+	Drop Table DeleteMe
+End If
+
+If fileExists(LogFile)then
+	Kill LogFile
+End If
+
+'Save to local drive and open
+Print "Cache datasets locally...."
+Open Table orgQVASPath As QVASOrg
+Commit Table QVASOrg As "C:\TEMP\copyQVASTable.TAB"
+Open Table "C:\TEMP\copyQVASTable.TAB" as QVASCopy
+Close Table QVASOrg
+
+'FinalTble
+Select * from QVASCopy where RowID = 1 Into DeleteMe
+Commit Table DeleteMe as "C:\TEMP\finalQVASTable.TAB"
+Close Table DeleteMe
+Open Table "C:\TEMP\finalQVASTable.TAB" as finalQVASTable
+Delete from finalQVASTable
+
+OnError Goto UpdateTblError
+Open File LogFile
+For Output As #1
+Print #1, "-----  Processing QAQC QVAS Commenced  ----- "
+Print #1, "## "+FormatDate$(GetDate(StartDate))+" "+FormatTime$(GetTime(StartTime), "hh:mm:ss.fff tt")
+Print #1, "## DEBUGGING" 
+Print #1, ""
+
+'Combine columns (take out line not requied i.e _L and _R)-> Future works users selects column
+Print "Combining QVAS by Property ID...."
+Dim ColumnSelect As Float'String
+Dim Plan,CmbLot As String
+Dim lot,i,j,k,lotCount As Integer
+
+Set Table QVASCopy FastEdit On Undo Off
+j=0
+Fetch First From QVASCopy
+Do While Not EOT(QVASCopy)
+	j=j+1
+	k=0
+	ColumnSelect = QVASCopy.Col2
+	lot=""
+	For k=1 to len(QVASCopy.col3) 'Get Lots
+		If Str$(Val(Mid$(QVASCopy.col3,k,1))) = Str$(Mid$(QVASCopy.col3,k,1))Then 'This is a number
+			lot=lot+Str$(Val(Mid$(QVASCopy.col3,k,1)))
+		Else
+			Exit For
+		End If
+	Next
+	Plan=mid$(str$(QVASCopy.col3),len(str$(lot))+1,len(str$(QVASCopy.col3))-len(str$(lot)))
+	print "Lot:"+lot+"  Plan:"+Plan  
+	Select * from QVASCopy where QVASCopy.Col2 = ColumnSelect into DeleteMe
+	lotCount=TableInfo(DeleteMe,TAB_INFO_NROWS)
+	If lotCount > 1 Then
+		For i=1 to lotCount
+			Select col3 from DeleteMe where RowID=i into DeleteMeAgain
+			If i=1 then
+				CmbLot=Val(DeleteMeAgain.col1)
+			Else
+				CmbLot=CmbLot+","+Val(DeleteMeAgain.col1)
+			End If
+		Next
+		Close Table DeleteMeAgain
+		If lotCount > 9 Then ' Dont save output "lots" use "multiple"
+			If lotCount > 300 Then 'Report on propertyId with more than 300 similar records
+				Print #1,"Property ID: "+ColumnSelect+"    Has "+str$(TableInfo(DeleteMe,TAB_INFO_NROWS))+" Records"
+			End If
+			Create Object As union
+			From DeleteMe
+			Into Table finalQVASTable 
+			Data col1=str$(Col1),col2=str$(Col2),col3=str$(Plan),col4=str$(col4),col5=str$(col5),col6=str$(col6),col7=str$(col7),col8=str$(col8),col9=str$(col9),col10=str$(col10),col11=str$(col11),col12=str$(col12),col13=str$(col13),col14=str$(col14),col15=str$(col15),col16=str$(col16),col17=str$(col17),col18=str$(col18),col19=str$(col19),col21=str$("Multiple Lots"),col22=str$(lotCount)						
+		Else 'Ouput multiple
+			Create Object As union
+			From DeleteMe
+			Into Table finalQVASTable 
+			Data col1=str$(Col1),col2=str$(Col2),col3=str$(Plan),col4=str$(col4),col5=str$(col5),col6=str$(col6),col7=str$(col7),col8=str$(col8),col9=str$(col9),col10=str$(col10),col11=str$(col11),col12=str$(col12),col13=str$(col13),col14=str$(col14),col15=str$(col15),col16=str$(col16),col17=str$(col17),col18=str$(col18),col19=str$(col19),col21=str$(CmbLot),col22=str$(lotCount)
+		End If
+		Delete from DeleteMe
+		Close Table DeleteMe
+		CmbLot=""		
+	Else
+		Create Object As union
+		From DeleteMe
+		Into Table finalQVASTable  'here
+		Data col1=col1,col2=col2,col3=col3,col4=col4,col5=col5,col6=col6,col7=col7,col8=col8,col9=col9,col10=col10,col11=col11,col12=col12,col13=col13,col14=col14,col15=col15,col16=col16,col17=col17,col18=col18,col19=col19,col20=col20
+		Delete from DeleteMe
+		Close Table DeleteMe
+	End If
+	AfterUpdateTblError:
+	Commit Table finalQVASTable
+	Commit Table QVASCopy
+'Runtime Exit
+'	Fetch Next From QVASCopy
+'	If j > 30000 Then
+'		j=0
+'		Commit Table QVASCopy
+'		Pack Table QVASCopy Graphic Data
+'	End If
+	Fetch First from QVASCopy
+Loop
+
+Commit Table finalQVASTable As "\\Shocnc03_shrsedat2pool_server\SHRSEDAT2\GROUPS\Geospatial\GIS\JohnW\Request\RichardJ\qvas\QVAS_TAB_CombinedPropID\Merge_SQL_QLD_lite_QT_srv_PropertyID.TAB"
+Drop Table QVASCopy
+Drop Table finalQVASTable
+Print #1,"-----  Succesfully Completed  ----- "
+Close File #1
+Close All
+Print "Successfully Completed!!!"
+
+
+Exit Sub
+UpdateTblError:
+Print #1,"Runtime Error - Property ID: "+ColumnSelect
+Print "Runtime Error - Property ID: "+ColumnSelect
+OnError GoTo 0
+Resume AfterUpdateTblError
+
+End Sub

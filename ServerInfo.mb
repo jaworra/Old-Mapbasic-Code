@@ -1,0 +1,66 @@
+' Programmer: John Worall
+' Date:             09/01/2012
+' Description:     Server Information
+'		    		 
+' Bugs/Updates Required: 
+' > 
+
+
+
+'Library
+'*************************************************************
+Include "mapbasic.def"
+'*************************************************************
+
+Declare Sub Main
+
+Sub Main
+
+Dim ServerConnnectInt,DriverConnectInt As Integer
+Dim DsnCon,UserCon,PassCon As String
+
+DriverConnectInt =1
+'DsnCon = "oroprd02.world"
+'UserCon = "gimrep"
+'PassCon = "gimrep"
+
+
+DsnCon = "roadlink"
+UserCon = "roadlink"
+PassCon = "roadlink"
+
+
+'"GimRep"
+ServerConnnectInt = Server_Connect("ORAINET","SRVR="& DsnCon &";UID="& UserCon &";PWD="&PassCon)
+'ServerConnnectInt = Server_Connect("ORAINET","SRVR=oroprd02.world;UID=gimrep;PWD=gimrep")
+
+
+'Output Database Information
+	Print Chr$(12)
+	Print "Server Information"
+	Print "Driver Name   -         "+Server_ConnectInfo(ServerConnnectInt,SRV_CONNECT_INFO_DRIVER_NAME)
+	Print "Database Name -         "+Server_ConnectInfo(ServerConnnectInt,SRV_CONNECT_INFO_DB_NAME)
+	Print "User Name     -         "+Server_ConnectInfo(ServerConnnectInt,SRV_CONNECT_INFO_SQL_USER_ID)
+	Print "DS Name       -         "+Server_ConnectInfo(ServerConnnectInt,SRV_CONNECT_INFO_DS_NAME)
+	'Print Server_ConnectInfo(ServerConnnectInt,SRV_CONNECT_INFO_QUOTE_CHAR)+""
+	Print "************************************************************"
+	Print "Driver Information"
+	Print "Number of Toolkits installed  -      "+Server_NumDrivers()
+	Print "Driver Name  -      "+Server_DriverInfo(DriverConnectInt,SRV_DRV_INFO_NAME)
+	Print "Driver Source  -      "+Server_DriverInfo(DriverConnectInt,SRV_DRV_DATA_SOURCE)
+	Print "Driver Information  -      "+Server_DriverInfo(DriverConnectInt,SRV_DRV_INFO_NAME_LIST)
+	Print "************************************************************"
+
+
+
+Dim SQLParsed As String
+Dim ExecuteInt As Integer
+
+SQLParsed="Select comp_id, version, status, comp_name from dba_registry where comp_id='SDO'"
+
+ExecuteInt = Server_Execute(ServerConnnectInt, "Select comp_id, version, status, comp_name from dba_registry")
+'ExecuteInt = Server_Execute(ServerConnnectInt,SQLParsed)
+Server ExecuteInt Close
+
+
+End Sub
